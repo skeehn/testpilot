@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtualenv
+.venv/
+venv/
+ENV/
+
+# Generated tests
+/generated_tests/
+
+# Distribution
+build/
+dist/
+*.egg-info/
+
+# VSCode
+.vscode/ 
