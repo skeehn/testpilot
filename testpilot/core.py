@@ -4,8 +4,10 @@ from testpilot.llm_providers import get_llm_provider
 
 try:
     from github import Github
+    PYGITHUB_AVAILABLE = True
 except ImportError:
     Github = None
+    PYGITHUB_AVAILABLE = False
 
 def generate_tests_llm(source_file, provider_name, model_name, api_key=None):
     """
@@ -69,11 +71,12 @@ def run_pytest_tests(test_file, return_trace=False):
             return error_msg
 
 def create_github_issue(repo, title, body, github_token):
-    """
-    Creates a GitHub issue and returns the issue URL.
-    """
-    if Github is None:
-        raise ImportError("PyGithub is not installed. Please install it to use GitHub integration.")
+    """Creates a GitHub issue and returns the issue URL."""
+    if not PYGITHUB_AVAILABLE:
+        raise ImportError(
+            "PyGithub is required for GitHub issue creation. "
+            "Install it with 'pip install PyGithub'."
+        )
     
     if not github_token:
         raise ValueError("GitHub token is required for creating issues.")

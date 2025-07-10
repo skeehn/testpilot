@@ -3,8 +3,10 @@ import os
 
 try:
     from openai import OpenAI
+    OPENAI_AVAILABLE = True
 except ImportError:
     OpenAI = None
+    OPENAI_AVAILABLE = False
 
 class LLMProvider(ABC):
     @abstractmethod
@@ -13,8 +15,11 @@ class LLMProvider(ABC):
 
 class OpenAIProvider(LLMProvider):
     def __init__(self, api_key: str = None):
-        if OpenAI is None:
-            raise ImportError("openai package is not installed.")
+        if not OPENAI_AVAILABLE:
+            raise ImportError(
+                "The 'openai' package is required for the OpenAI provider. "
+                "Install it with 'pip install openai'."
+            )
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OpenAI API key must be provided via argument or OPENAI_API_KEY env var.")
@@ -37,6 +42,11 @@ class OpenAIProvider(LLMProvider):
 
 def get_llm_provider(provider_name: str, api_key: str = None) -> LLMProvider:
     if provider_name.lower() == "openai":
+        if not OPENAI_AVAILABLE:
+            raise ImportError(
+                "The 'openai' package is required for the OpenAI provider. "
+                "Install it with 'pip install openai'."
+            )
         return OpenAIProvider(api_key)
     # Future: add elif for other providers (Anthropic, Ollama, etc.)
-    raise ValueError(f"Unsupported LLM provider: {provider_name}") 
+    raise ValueError(f"Unsupported LLM provider: {provider_name}")

@@ -141,6 +141,7 @@ url = create_github_issue("user/repo", "Test failed", "Details...", "token")
 
 ## Troubleshooting
 - **Import errors:** Ensure you're in your virtual environment and have run `pip install -e .`.
+- **Missing dependencies:** If you see errors about `openai` or `PyGithub` not being installed, run `pip install openai PyGithub`.
 - **API key issues:** Run `testpilot reset-keys` to re-enter keys.
 - **Permission errors:** Make sure your GitHub token has `repo` scope for issue creation.
 - **Test failures:** Check the generated test file and your source code for errors.
