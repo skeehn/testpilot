@@ -26,12 +26,18 @@ pip install -e .
 # 1. First run: enter your OpenAI and GitHub API keys when prompted
 # 2. Generate tests for a Python file
 $ testpilot generate my_module.py
+# OR if console script doesn't work:
+$ python -m testpilot.cli generate my_module.py
 
 # 3. Run the generated tests
 $ testpilot run generated_tests/test_my_module.py
+# OR:
+$ python -m testpilot.cli run generated_tests/test_my_module.py
 
 # 4. Triage failures (creates GitHub issues)
 $ testpilot triage generated_tests/test_my_module.py --repo yourusername/yourrepo
+# OR:
+$ python -m testpilot.cli triage generated_tests/test_my_module.py --repo yourusername/yourrepo
 ```
 
 ## Usage Patterns
@@ -48,6 +54,9 @@ testpilot triage generated_tests/test_your_module.py --repo yourusername/yourrep
 ```bash
 testpilot reset-keys
 ```
+
+**Note:** If the `testpilot` command doesn't work, you can always use `python -m testpilot.cli` instead of `testpilot`.
+
 #### Anti-patterns to Avoid
 - Don't commit your `.env` file or API keys.
 - Don't run `triage` without a valid GitHub token.
@@ -75,8 +84,8 @@ Add this to `.vscode/tasks.json` for quick access:
         {
             "label": "TestPilot: Generate Tests",
             "type": "shell",
-            "command": "testpilot",
-            "args": ["generate", "${file}"],
+            "command": "python",
+            "args": ["-m", "testpilot.cli", "generate", "${file}"],
             "group": "test",
             "presentation": {
                 "echo": true,
@@ -86,8 +95,8 @@ Add this to `.vscode/tasks.json` for quick access:
         {
             "label": "TestPilot: Run Tests",
             "type": "shell",
-            "command": "testpilot",
-            "args": ["run", "${input:testFile}"],
+            "command": "python",
+            "args": ["-m", "testpilot.cli", "run", "${input:testFile}"],
             "group": "test"
         }
     ],
@@ -105,8 +114,8 @@ Add this to `.vscode/tasks.json` for quick access:
 ### PyCharm/JetBrains
 1. Go to **Run > Edit Configurations**
 2. Add a new **Python** configuration:
-   - **Script path:** Path to your `testpilot` executable
-   - **Parameters:** `generate $FilePath$`
+   - **Script path:** Path to your Python executable
+   - **Parameters:** `-m testpilot.cli generate $FilePath$`
    - **Working directory:** `$ProjectFileDir$`
 
 ### Python API
@@ -135,6 +144,7 @@ url = create_github_issue("user/repo", "Test failed", "Details...", "token")
 - **API key issues:** Run `testpilot reset-keys` to re-enter keys.
 - **Permission errors:** Make sure your GitHub token has `repo` scope for issue creation.
 - **Test failures:** Check the generated test file and your source code for errors.
+- **Console script issues:** If `testpilot` command doesn't work, use `python -m testpilot.cli` instead.
 
 ## Additional Resources
 - [Project Wiki](./docs/)

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "testpilot"
+version = "0.1.0"
+description = "AI-powered test generation, execution, and triage CLI for Python projects"
+readme = "README.md"
+authors = [{name = "TestPilot Authors"}]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = ["testing", "ai", "llm", "pytest", "automation", "triage"]
+requires-python = ">=3.7"
+dependencies = [
+    "click",
+    "openai",
+    "PyGithub",
+    "pytest",
+    "python-dotenv",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/testpilot"
+Repository = "https://github.com/yourusername/testpilot"
+
+[project.scripts]
+testpilot = "testpilot.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["testpilot*"] 
