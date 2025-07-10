@@ -1,6 +1,6 @@
-from abc import ABC, abstractmethod
-import os
 import importlib
+import os
+from abc import ABC, abstractmethod
 
 PROVIDER_REGISTRY = {}
 
@@ -31,7 +31,8 @@ class OpenAIProvider(LLMProvider):
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError(
-                "OpenAI API key must be provided via argument or OPENAI_API_KEY env var."
+                "OpenAI API key must be provided via argument or "
+                "OPENAI_API_KEY env var."
             )
         self.client = OpenAI(api_key=self.api_key)
 
@@ -57,7 +58,8 @@ class AnthropicProvider(LLMProvider):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError(
-                "Anthropic API key must be provided via argument or ANTHROPIC_API_KEY env var."
+                "Anthropic API key must be provided via argument or "
+                "ANTHROPIC_API_KEY env var."
             )
 
     def generate_text(self, prompt: str, model_name: str) -> str:

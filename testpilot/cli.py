@@ -1,8 +1,14 @@
-import click
 import os
 from pathlib import Path
+
+import click
 from dotenv import load_dotenv, set_key
-from testpilot.core import generate_tests_llm, run_pytest_tests, create_github_issue
+
+from testpilot.core import (
+    create_github_issue,
+    generate_tests_llm,
+    run_pytest_tests,
+)
 
 ENV_PATH = Path(".env")
 ONBOARD_FLAG = Path(".testpilot_onboarded")
@@ -88,11 +94,22 @@ def help():
     print(HELP_TEXT)
 
 @cli.command()
-@click.argument('source_file', type=click.Path(exists=True, dir_okay=False, readable=True))
+@click.argument(
+    'source_file',
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+)
 @click.option('--provider', default='openai', help='LLM provider (default: openai)')
 @click.option('--model', default='gpt-4o', help='Model name (default: gpt-4o)')
-@click.option('--api-key', default=None, help='API key for LLM provider (default: env var)')
-@click.option('--output-dir', default='./generated_tests', help='Directory to save generated tests')
+@click.option(
+    '--api-key',
+    default=None,
+    help='API key for LLM provider (default: env var)',
+)
+@click.option(
+    '--output-dir',
+    default='./generated_tests',
+    help='Directory to save generated tests',
+)
 def generate(source_file, provider, model, api_key, output_dir):
     """
     Generate unit tests for a SOURCE_FILE using an LLM.
@@ -106,7 +123,10 @@ def generate(source_file, provider, model, api_key, output_dir):
     click.echo(f"[generate] Test file written to {test_file}")
 
 @cli.command()
-@click.argument('test_file', type=click.Path(exists=True, dir_okay=False, readable=True))
+@click.argument(
+    'test_file',
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+)
 def run(test_file):
     """
     Run tests in TEST_FILE using pytest.
@@ -115,7 +135,10 @@ def run(test_file):
     click.echo(result)
 
 @cli.command()
-@click.argument('test_file', type=click.Path(exists=True, dir_okay=False, readable=True))
+@click.argument(
+    'test_file',
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+)
 @click.option('--repo', required=True, help='GitHub repo (e.g. user/repo)')
 def triage(test_file, repo):
     """
@@ -124,7 +147,12 @@ def triage(test_file, repo):
     result, failed, trace = run_pytest_tests(test_file, return_trace=True)
     click.echo(result)
     if failed:
-        url = create_github_issue(repo, f"Test failure in {test_file}", trace, os.getenv("GITHUB_TOKEN"))
+        url = create_github_issue(
+            repo,
+            f"Test failure in {test_file}",
+            trace,
+            os.getenv("GITHUB_TOKEN"),
+        )
         click.echo(f"[triage] Issue created: {url}")
     else:
         click.echo("[triage] All tests passed. No issue created.")

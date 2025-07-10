@@ -1,11 +1,13 @@
 import os
 import subprocess
+
 from testpilot.llm_providers import get_llm_provider
 
 try:
     from github import Github
 except ImportError:
     Github = None
+
 
 def generate_tests_llm(source_file, provider_name, model_name, api_key=None):
     """
@@ -50,7 +52,7 @@ def run_pytest_tests(test_file, return_trace=False):
             ['python', '-m', 'pytest', test_file, '-v'],
             capture_output=True,
             text=True,
-            cwd=os.getcwd()
+            cwd=os.getcwd(),
         )
         
         output = result.stdout + result.stderr
@@ -73,7 +75,9 @@ def create_github_issue(repo, title, body, github_token):
     Creates a GitHub issue and returns the issue URL.
     """
     if Github is None:
-        raise ImportError("PyGithub is not installed. Please install it to use GitHub integration.")
+        raise ImportError(
+            "PyGithub is not installed. Please install it to use GitHub integration."
+        )
     
     if not github_token:
         raise ValueError("GitHub token is required for creating issues.")
@@ -91,4 +95,4 @@ def create_github_issue(repo, title, body, github_token):
         return issue.html_url
         
     except Exception as e:
-        raise Exception(f"Failed to create GitHub issue: {str(e)}") 
+        raise Exception(f"Failed to create GitHub issue: {str(e)}")
