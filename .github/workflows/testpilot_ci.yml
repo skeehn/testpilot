@@ -22,5 +22,13 @@ jobs:
         pip install pytest
     - name: Generate tests for sample module
       run: testpilot generate my_module.py
-    - name: Run generated tests
-      run: testpilot run generated_tests/test_my_module.py 
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    - name: Run pytest
+      run: pytest generated_tests/test_my_module.py -v --junitxml=pytest.xml
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-results
+        path: pytest.xml

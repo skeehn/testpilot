@@ -136,7 +136,7 @@ url = create_github_issue("user/repo", "Test failed", "Details...", "token")
 
 ## Integration Guide
 - **Works with any Python project.**
-- **GitHub Actions:** See `.github/workflows/testpilot_ci.yml` for CI integration.
+- **GitHub Actions:** See `.github/workflows/testpilot_ci.yml` for CI integration. An overview of the workflow and tips for running it locally are available in [docs/CI.md](./docs/CI.md).
 - **Extensible:** Add new LLM providers or plugins via `llm_providers.py` and future plugin hooks.
 
 ## Troubleshooting
@@ -150,6 +150,27 @@ url = create_github_issue("user/repo", "Test failed", "Details...", "token")
 - [Project Wiki](./docs/)
 - [Examples](./examples/)
 - [Contributing Guide](./CONTRIBUTING.md)
+
+## Continuous Integration
+The file [`.github/workflows/testpilot_ci.yml`](./.github/workflows/testpilot_ci.yml)
+defines a GitHub Actions job that installs TestPilot, generates sample tests and
+runs them with `pytest`. A JUnit report is uploaded as an artifact so you can
+inspect failures from the Actions interface. API keys are provided via GitHub
+Secrets and injected as environment variables at runtime.
+
+### Reproducing the CI job locally
+You can run the same commands on your machine:
+
+```bash
+python -m pip install --upgrade pip
+pip install -e .
+pip install pytest
+export OPENAI_API_KEY=your-key
+testpilot generate my_module.py
+pytest generated_tests/test_my_module.py -v --junitxml=pytest.xml
+```
+
+See [docs/CI.md](./docs/CI.md) for a more detailed explanation.
 
 ## Security
 - `.env` is in `.gitignore` and never committed.
