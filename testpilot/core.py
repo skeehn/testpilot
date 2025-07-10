@@ -17,45 +17,78 @@ def generate_tests_llm(source_file, provider_name, model_name, api_key=None):
     prompt = f"""
 You are an expert software engineer specializing in writing comprehensive unit tests.
 Generate a complete Python pytest unit test file for the following Python code.
-Ensure the tests cover various scenarios, including edge cases and common usage.
-Do not include any explanations, just the Python code for the test file.
+Ensure the tests cover edge cases, normal cases, and error conditions.
 
-The original file is: {os.path.basename(source_file)}
-
+Source code:
 ```python
 {source_code}
 ```
 
-Generate the pytest code for this file. The output should be a single block of Python code, suitable for writing directly to a .py file.
+Requirements:
+- Use pytest framework
+- Include proper imports
+- Test all functions and methods
+- Use descriptive test names
+- Include docstrings for test functions
+- Cover edge cases and error conditions
+
+Generate only the test code, no explanations:
 """
+    
     provider = get_llm_provider(provider_name, api_key)
-    return provider.generate_text(prompt, model_name)
+    test_code = provider.generate_text(prompt, model_name)
+    return test_code
 
-def run_pytest_tests(test_path):
+def run_pytest_tests(test_file, return_trace=False):
     """
-    Runs pytest on the given test_path (file or directory).
-    Returns (exit_code, output_str).
+    Runs pytest on the given test file and returns results.
+    If return_trace=True, returns (output, failed, trace) tuple.
+    Otherwise, returns just the output string.
     """
-    command = ["pytest", test_path, "--tb=long", "-s"]
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
-    return result.returncode, result.stdout + result.stderr
+    try:
+        result = subprocess.run(
+            ['python', '-m', 'pytest', test_file, '-v'],
+            capture_output=True,
+            text=True,
+            cwd=os.getcwd()
+        )
+        
+        output = result.stdout + result.stderr
+        failed = result.returncode != 0
+        
+        if return_trace:
+            return output, failed, output
+        else:
+            return output
+            
+    except Exception as e:
+        error_msg = f"Error running pytest: {str(e)}"
+        if return_trace:
+            return error_msg, True, error_msg
+        else:
+            return error_msg
 
-def create_github_issue(repo_full_name, title, body, labels=None, api_key=None):
+def create_github_issue(repo, title, body, github_token):
     """
-    Creates a GitHub issue in the specified repo.
-    Returns the issue URL or None on failure.
+    Creates a GitHub issue and returns the issue URL.
     """
     if Github is None:
-        raise ImportError("PyGithub is not installed.")
-    token = api_key or os.environ.get("GITHUB_TOKEN")
-    if not token:
-        raise ValueError("GitHub token must be provided via argument or GITHUB_TOKEN env var.")
-    g = Github(token)
+        raise ImportError("PyGithub is not installed. Please install it to use GitHub integration.")
+    
+    if not github_token:
+        raise ValueError("GitHub token is required for creating issues.")
+    
     try:
-        owner, repo_name = repo_full_name.split('/')
-        repo = g.get_user(owner).get_repo(repo_name)
-        issue = repo.create_issue(title=title, body=body, labels=labels or [])
+        g = Github(github_token)
+        repository = g.get_repo(repo)
+        
+        issue = repository.create_issue(
+            title=title,
+            body=body,
+            labels=["test-failure", "testpilot-auto"]
+        )
+        
         return issue.html_url
+        
     except Exception as e:
-        print(f"Error creating GitHub issue: {e}")
-        return None 
+        raise Exception(f"Failed to create GitHub issue: {str(e)}") 
