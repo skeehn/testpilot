@@ -152,7 +152,7 @@ url = create_github_issue("user/repo", "Test failed", "Details...", "token")
 - **Console script issues:** If `testpilot` command doesn't work, use `python -m testpilot.cli` instead.
 
 ## Additional Resources
-- [Project Wiki](./docs/)
+- [Documentation](./docs/)
 - [Examples](./examples/)
 - [Contributing Guide](./CONTRIBUTING.md)
 
