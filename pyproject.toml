@@ -42,4 +42,18 @@ testpilot = "testpilot.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["testpilot*"] 
+include = ["testpilot*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py37']
+
+[tool.ruff]
+line-length = 88
+target-version = "py37"
+select = ["E", "F", "I"]
+exclude = ["testpilot.egg-info"]
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203"]
