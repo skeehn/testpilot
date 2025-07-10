@@ -1,5 +1,7 @@
-from setuptools import setup, find_packages
 import os
+
+from setuptools import find_packages, setup
+
 
 # Read version from package
 def get_version():
@@ -17,7 +19,9 @@ with open('README.md', 'r', encoding='utf-8') as f:
 setup(
     name='testpilot',
     version=get_version(),
-    description='AI-powered test generation, execution, and triage CLI for Python projects',
+    description=(
+        'AI-powered test generation, execution, and triage CLI for Python projects'
+    ),
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='TestPilot Authors',

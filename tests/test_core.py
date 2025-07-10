@@ -1,8 +1,3 @@
-import os
-from pathlib import Path
-
-import pytest
-
 from testpilot.core import generate_tests_llm, run_pytest_tests
 
 
