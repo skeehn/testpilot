@@ -139,6 +139,11 @@ url = create_github_issue("user/repo", "Test failed", "Details...", "token")
 - **GitHub Actions:** See `.github/workflows/testpilot_ci.yml` for CI integration.
 - **Extensible:** Add new LLM providers or plugins via `llm_providers.py` and future plugin hooks.
 
+### Adding a New LLM Provider
+1. Subclass `LLMProvider` and implement `generate_text`.
+2. Register the class with `@register_provider("your_name")`.
+3. Optionally place the class in another module and use `get_llm_provider("module.ClassName")` to load it dynamically.
+
 ## Troubleshooting
 - **Import errors:** Ensure you're in your virtual environment and have run `pip install -e .`.
 - **API key issues:** Run `testpilot reset-keys` to re-enter keys.
