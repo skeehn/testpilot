@@ -72,6 +72,17 @@ Thank you for your interest in contributing to TestPilot! We welcome contributio
 - Add docstrings to public functions
 - Keep functions focused and small
 
+## Linting
+
+We use `pre-commit` to run `black` and `ruff` (a fast flake8 replacement).
+Install the hooks once and run them manually with:
+
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files
+```
+
 ## Questions?
 
 - Open an issue for bugs or feature requests
