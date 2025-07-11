@@ -14,6 +14,16 @@ if TYPE_CHECKING:  # pragma: no cover
     from openai import OpenAI as _OpenAI  # type: ignore
     OpenAI = _OpenAI  # type: ignore
 
+# Optional runtime dependency handling for Anthropic SDK.
+try:
+    import anthropic  # type: ignore
+except ImportError:  # pragma: no cover
+    anthropic = None  # type: ignore
+
+if TYPE_CHECKING:  # pragma: no cover
+    import anthropic as _anthropic  # type: ignore
+    anthropic = _anthropic  # type: ignore
+
 PROVIDER_REGISTRY = {}
 
 
@@ -64,9 +74,12 @@ class OpenAIProvider(LLMProvider):
 
 @register_provider("anthropic")
 class AnthropicProvider(LLMProvider):
-    """Stub provider for Anthropic's Claude models."""
+    """Provider for Anthropic's Claude models (via official `anthropic` SDK)."""
 
     def __init__(self, api_key: Optional[str] = None):
+        if anthropic is None:
+            raise ImportError("anthropic package is not installed.")
+
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError(
@@ -74,8 +87,45 @@ class AnthropicProvider(LLMProvider):
                 "ANTHROPIC_API_KEY env var."
             )
 
+        # Instantiate Anthropic client.
+        self.client = anthropic.Anthropic(api_key=self.api_key)  # type: ignore[attr-defined]
+
     def generate_text(self, prompt: str, model_name: str) -> str:
-        return "Anthropic provider is not yet implemented"
+        """Generate text using Claude models.
+
+        A high `max_tokens` is used by default; providers requiring stricter
+        control can override later when we add CLI flags.
+        """
+
+        response = self.client.messages.create(  # type: ignore[attr-defined]
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4096,
+        )
+
+        # The SDK returns `response.content` as a list of blocks; concatenate
+        # text parts in order.
+        # The exact structure may evolve, so fall back gracefully.
+        if hasattr(response, "content") and isinstance(response.content, list):
+            text_parts = []
+            for block in response.content:
+                # Newer SDK versions wrap text blocks in objects with a `.text` attribute
+                # Older versions may just be plain dicts.
+                if hasattr(block, "text"):
+                    text_parts.append(block.text)
+                elif isinstance(block, dict):
+                    text_parts.append(block.get("text", ""))
+                else:
+                    text_parts.append(str(block))
+            content = "".join(text_parts)
+        else:
+            # Fallback: stringify whole response.
+            content = str(getattr(response, "content", response))
+
+        # Strip code fencing if it exists.
+        if "```python" in content:
+            content = content.split("```python", 1)[1].split("```", 1)[0]
+        return content.strip()
 
 
 def get_llm_provider(provider_name: str, api_key: Optional[str] = None) -> LLMProvider:
