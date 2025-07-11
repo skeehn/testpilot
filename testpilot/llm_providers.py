@@ -1,7 +1,7 @@
 import importlib
 import os
 from abc import ABC, abstractmethod
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Set
 
 # Optional runtime dependency handling for the OpenAI client library.
 try:
@@ -38,13 +38,31 @@ def register_provider(name: str):
 
 
 class LLMProvider(ABC):
+    """Abstract provider interface with model metadata."""
+
+    # The provider’s recommended default model (may be None if caller must supply)
+    default_model: Optional[str] = None
+
+    # Explicit set of supported model names. If empty/None, skip validation.
+    supported_models: Optional[Set[str]] = None
+
     @abstractmethod
     def generate_text(self, prompt: str, model_name: str) -> str:
-        pass
+        """Return LLM completion for *prompt* using *model_name*."""
+        raise NotImplementedError
 
 
 @register_provider("openai")
 class OpenAIProvider(LLMProvider):
+    default_model = "gpt-4o"
+    supported_models: Set[str] = {
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4",
+        "gpt-4-turbo",
+        "gpt-3.5-turbo",
+    }
+
     def __init__(self, api_key: Optional[str] = None):
         if OpenAI is None:
             raise ImportError("openai package is not installed.")
@@ -75,6 +93,14 @@ class OpenAIProvider(LLMProvider):
 @register_provider("anthropic")
 class AnthropicProvider(LLMProvider):
     """Provider for Anthropic's Claude models (via official `anthropic` SDK)."""
+
+    default_model = "claude-3-sonnet-20240229"
+    supported_models: Set[str] = {
+        "claude-instant-1",
+        "claude-2",
+        "claude-3-sonnet-20240229",
+        "claude-3-opus-20240229",
+    }
 
     def __init__(self, api_key: Optional[str] = None):
         if anthropic is None:
@@ -182,8 +208,10 @@ class AzureOpenAIProvider(OpenAIProvider):
             default_headers={"api-version": api_version},
         )
 
-        # Store deployment so we can default `model_name`.
+        # Store deployment as default & supported model set (since Azure maps 1:1)
         self.deployment = deployment
+        self.default_model = deployment
+        self.supported_models = {deployment} if deployment else set()
 
     # ------------------------------------------------------------------
     # Overrides
@@ -229,6 +257,12 @@ if TYPE_CHECKING:  # pragma: no cover
 @register_provider("mistral")
 @register_provider("hf-mistral")
 class MistralProvider(LLMProvider):
+    default_model = "mistralai/Mistral-7B-Instruct-v0.2"
+    supported_models: Set[str] = {
+        "mistralai/Mistral-7B-Instruct-v0.2",
+        "mistralai/Mistral-7B-Instruct-v0.1",
+    }
+
     """Provider that calls Mistral models via HuggingFace Inference API.
 
     Usage:

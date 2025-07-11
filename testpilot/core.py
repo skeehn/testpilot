@@ -1,7 +1,7 @@
 import os
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Set
 
 from testpilot.llm_providers import get_llm_provider
 
@@ -18,11 +18,38 @@ if TYPE_CHECKING:  # pragma: no cover
     Github = _Github  # type: ignore
 
 
-def generate_tests_llm(source_file, provider_name, model_name, api_key=None):
+def _validate_model(provider, model_name: Optional[str]):
+    """Return a valid model name for *provider* or raise.
+
+    If *model_name* is None, fall back to provider.default_model.
+    If provider.supported_models is populated, ensure the chosen model is in it.
+    """
+
+    chosen = model_name or getattr(provider, "default_model", None)
+    if chosen is None:
+        raise ValueError(
+            f"Model name must be provided for provider without default ({provider.__class__.__name__})"
+        )
+
+    supported: Optional[Set[str]] = getattr(provider, "supported_models", None)
+    if supported:
+        if chosen not in supported:
+            raise ValueError(
+                f"Model '{chosen}' not supported by provider {provider.__class__.__name__}. "
+                f"Supported models: {', '.join(sorted(supported))}"
+            )
+    return chosen
+
+
+def generate_tests_llm(source_file: str, provider_name: str, model_name: Optional[str] = None, api_key: Optional[str] = None):
     """
     Generates unit tests for a source file using the specified LLM provider.
     Returns the generated test code as a string.
     """
+
+    provider = get_llm_provider(provider_name, api_key)
+    model_name_validated = _validate_model(provider, model_name)
+
     with open(source_file, 'r') as f:
         source_code = f.read()
     prompt = f"""
@@ -46,8 +73,7 @@ Requirements:
 Generate only the test code, no explanations:
 """
     
-    provider = get_llm_provider(provider_name, api_key)
-    test_code = provider.generate_text(prompt, model_name)
+    test_code = provider.generate_text(prompt, model_name_validated)
     return test_code
 
 def run_pytest_tests(test_file, return_trace=False):
