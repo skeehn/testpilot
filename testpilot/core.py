@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 from testpilot.llm_providers import get_llm_provider
 
@@ -48,8 +49,9 @@ def run_pytest_tests(test_file, return_trace=False):
     Otherwise, returns just the output string.
     """
     try:
+        cmd = [sys.executable, '-m', 'pytest', test_file, '-v']
         result = subprocess.run(
-            ['python', '-m', 'pytest', test_file, '-v'],
+            cmd,
             capture_output=True,
             text=True,
             cwd=os.getcwd(),
