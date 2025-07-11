@@ -128,6 +128,88 @@ class AnthropicProvider(LLMProvider):
         return content.strip()
 
 
+# ---------------------------------------------------------------------------
+# Azure OpenAI Provider (extends OpenAIProvider)
+# ---------------------------------------------------------------------------
+
+
+@register_provider("azure-openai")
+@register_provider("azure")
+class AzureOpenAIProvider(OpenAIProvider):
+    """Provider for Azure-hosted OpenAI deployments.
+
+    Required environment variables (unless passed explicitly):
+      • AZURE_OPENAI_ENDPOINT – e.g. https://myresource.openai.azure.com
+      • AZURE_OPENAI_API_KEY – the resource access key
+      • AZURE_OPENAI_DEPLOYMENT – deployment/engine name (maps to *model*)
+
+    Optional:
+      • AZURE_OPENAI_API_VERSION – defaults to 2023-05-15
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        *,
+        endpoint: Optional[str] = None,
+        deployment: Optional[str] = None,
+        api_version: str | None = None,
+    ) -> None:
+        if OpenAI is None:
+            raise ImportError("openai package is not installed.")
+
+        endpoint = endpoint or os.environ.get("AZURE_OPENAI_ENDPOINT")
+        api_key = api_key or os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        deployment = deployment or os.environ.get("AZURE_OPENAI_DEPLOYMENT") or os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME")
+        api_version = api_version or os.environ.get("AZURE_OPENAI_API_VERSION", "2023-05-15")
+
+        if not all([endpoint, api_key, deployment]):
+            missing = [n for n, v in {
+                "endpoint": endpoint,
+                "api_key": api_key,
+                "deployment": deployment,
+            }.items() if not v]
+            raise ValueError(f"Azure OpenAI missing required value(s): {', '.join(missing)}")
+
+        # Azure requires the API version in the query string; the `openai` SDK
+        # supports this via a default header or by passing `api_version` param.
+        base_url = f"{endpoint}/openai/deployments/{deployment}"
+
+        # Build client with azure endpoint – note the `api_version` header.
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            default_headers={"api-version": api_version},
+        )
+
+        # Store deployment so we can default `model_name`.
+        self.deployment = deployment
+
+    # ------------------------------------------------------------------
+    # Overrides
+    # ------------------------------------------------------------------
+
+    def generate_text(self, prompt: str, model_name: str | None = None) -> str:  # type: ignore[override]
+        """Generate chat completion using Azure deployment.
+
+        If *model_name* is omitted, the configured deployment name is used.
+        """
+
+        model = model_name or self.deployment
+
+        chat_completion = self.client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are an expert software engineer."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        content = chat_completion.choices[0].message.content
+        if "```python" in content:
+            content = content.split("```python", 1)[1].split("```", 1)[0]
+        return content.strip()
+
+
 def get_llm_provider(provider_name: str, api_key: Optional[str] = None) -> LLMProvider:
     """Return an instance of a registered LLM provider."""
 
