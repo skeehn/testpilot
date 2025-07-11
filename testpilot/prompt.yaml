@@ -1,0 +1,19 @@
+default: |
+  You are an expert software engineer specializing in writing comprehensive unit tests.
+  Generate a complete Python pytest unit test file for the following Python code.
+  Ensure the tests cover edge cases, normal cases, and error conditions.
+
+  Source code:
+  ```python
+  $source_code
+  ```
+
+  Requirements:
+  - Use pytest framework
+  - Include proper imports
+  - Test all functions and methods
+  - Use descriptive test names
+  - Include docstrings for test functions
+  - Cover edge cases and error conditions
+
+  Generate only the test code, no explanations:

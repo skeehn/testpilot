@@ -110,12 +110,35 @@ def help():
     default='./generated_tests',
     help='Directory to save generated tests',
 )
-def generate(source_file, provider, model, api_key, output_dir):
+@click.option(
+    '--prompt-file',
+    default=None,
+    type=click.Path(exists=True, dir_okay=False, readable=True),
+    help='YAML file containing prompt templates',
+)
+@click.option(
+    '--prompt-name',
+    default=None,
+    help='Name of template inside prompt YAML (default: "default")',
+)
+def generate(source_file, provider, model, api_key, output_dir, prompt_file, prompt_name):
     """
     Generate unit tests for a SOURCE_FILE using an LLM.
     """
     os.makedirs(output_dir, exist_ok=True)
-    test_code = generate_tests_llm(source_file, provider, model, api_key)
+    extra_kwargs = {}
+    if prompt_file is not None:
+        extra_kwargs["prompt_file"] = prompt_file
+    if prompt_name is not None:
+        extra_kwargs["prompt_name"] = prompt_name
+
+    test_code = generate_tests_llm(
+        source_file,
+        provider,
+        model,
+        api_key,
+        **extra_kwargs,
+    )
     base = os.path.basename(source_file)
     test_file = os.path.join(output_dir, f"test_{base}")
     with open(test_file, 'w') as f:

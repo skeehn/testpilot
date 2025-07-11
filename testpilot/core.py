@@ -1,9 +1,21 @@
 import os
 import subprocess
 import sys
+from string import Template
 from typing import TYPE_CHECKING, Optional, Set
 
+import importlib.resources as pkg_resources
+
+try:
+    import yaml  # type: ignore
+except ImportError as exc:  # pragma: no cover
+    yaml = None  # type: ignore
+
 from testpilot.llm_providers import get_llm_provider
+
+# Package resource folder for templates
+_TEMPLATE_PKG = "testpilot"
+_DEFAULT_PROMPT_RES = "prompt.yaml"
 
 # Optional PyGithub import: provide graceful fallback when unavailable.
 try:
@@ -41,7 +53,66 @@ def _validate_model(provider, model_name: Optional[str]):
     return chosen
 
 
-def generate_tests_llm(source_file: str, provider_name: str, model_name: Optional[str] = None, api_key: Optional[str] = None):
+# ------------------------------------------------------------
+# Prompt loading helpers
+# ------------------------------------------------------------
+
+def _load_prompt_template(prompt_file: Optional[str], prompt_name: Optional[str]) -> str:
+    """Load a prompt template string from YAML file.
+
+    If *prompt_file* is None, loads the built-in template resource.
+    If YAML maps names to templates, *prompt_name* selects which one (default 'default').
+    If YAML is a plain string, return it directly.
+    """
+
+    # Obtain template content
+    if prompt_file is None:
+        # Load from package resources
+        with pkg_resources.files(_TEMPLATE_PKG).joinpath(_DEFAULT_PROMPT_RES).open("r", encoding="utf-8") as f:
+            raw = f.read()
+    else:
+        with open(prompt_file, "r", encoding="utf-8") as f:
+            raw = f.read()
+
+    if yaml is None:
+        # PyYAML missing – treat file as plain text
+        return raw
+
+    try:
+        data = yaml.safe_load(raw)
+    except yaml.YAMLError:
+        # If parsing fails, fall back to raw text
+        return raw
+
+    # If the YAML is just a string, return it
+    if isinstance(data, str):
+        return data
+
+    if not isinstance(data, dict):
+        raise ValueError("Prompt YAML must be a string or mapping of name → template.")
+
+    key = prompt_name or "default"
+    if key not in data:
+        raise KeyError(f"Prompt name '{key}' not found in template file.")
+    return str(data[key])
+
+
+def _build_prompt(source_code: str, prompt_file: Optional[str], prompt_name: Optional[str]) -> str:
+    template_str = _load_prompt_template(prompt_file, prompt_name)
+    # Use string.Template to avoid conflicts with `{}` braces inside source code
+    tmpl = Template(template_str)
+    return tmpl.safe_substitute(source_code=source_code)
+
+
+
+def generate_tests_llm(
+    source_file: str,
+    provider_name: str,
+    model_name: Optional[str] = None,
+    api_key: Optional[str] = None,
+    prompt_file: Optional[str] = None,
+    prompt_name: Optional[str] = None,
+):
     """
     Generates unit tests for a source file using the specified LLM provider.
     Returns the generated test code as a string.
@@ -50,28 +121,10 @@ def generate_tests_llm(source_file: str, provider_name: str, model_name: Optiona
     provider = get_llm_provider(provider_name, api_key)
     model_name_validated = _validate_model(provider, model_name)
 
-    with open(source_file, 'r') as f:
+    with open(source_file, "r", encoding="utf-8") as f:
         source_code = f.read()
-    prompt = f"""
-You are an expert software engineer specializing in writing comprehensive unit tests.
-Generate a complete Python pytest unit test file for the following Python code.
-Ensure the tests cover edge cases, normal cases, and error conditions.
 
-Source code:
-```python
-{source_code}
-```
-
-Requirements:
-- Use pytest framework
-- Include proper imports
-- Test all functions and methods
-- Use descriptive test names
-- Include docstrings for test functions
-- Cover edge cases and error conditions
-
-Generate only the test code, no explanations:
-"""
+    prompt = _build_prompt(source_code, prompt_file, prompt_name)
     
     test_code = provider.generate_text(prompt, model_name_validated)
     return test_code

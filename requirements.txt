@@ -5,3 +5,4 @@ pytest
 python-dotenv
 anthropic>=0.6.0 
 requests 
+PyYAML 
