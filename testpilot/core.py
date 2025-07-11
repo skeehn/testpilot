@@ -1,13 +1,21 @@
 import os
 import subprocess
 import sys
+from typing import TYPE_CHECKING, Optional
 
 from testpilot.llm_providers import get_llm_provider
 
+# Optional PyGithub import: provide graceful fallback when unavailable.
 try:
-    from github import Github
-except ImportError:
-    Github = None
+    from github import Github  # type: ignore
+except ImportError:  # pragma: no cover
+    Github = None  # type: ignore
+
+# For static type checkers, expose a stub so type resolution succeeds even when
+# PyGithub is absent at runtime.
+if TYPE_CHECKING:  # pragma: no cover
+    from github import Github as _Github  # type: ignore
+    Github = _Github  # type: ignore
 
 
 def generate_tests_llm(source_file, provider_name, model_name, api_key=None):
@@ -72,7 +80,8 @@ def run_pytest_tests(test_file, return_trace=False):
         else:
             return error_msg
 
-def create_github_issue(repo, title, body, github_token):
+# Duplicate 'Optional' import removed above. Function signature updated:
+def create_github_issue(repo: str, title: str, body: str, github_token: Optional[str]):
     """
     Creates a GitHub issue and returns the issue URL.
     """

@@ -1,6 +1,7 @@
 import importlib
 import os
 from abc import ABC, abstractmethod
+from typing import Optional
 
 PROVIDER_REGISTRY = {}
 
@@ -66,7 +67,7 @@ class AnthropicProvider(LLMProvider):
         return "Anthropic provider is not yet implemented"
 
 
-def get_llm_provider(provider_name: str, api_key: str = None) -> LLMProvider:
+def get_llm_provider(provider_name: str, api_key: Optional[str] = None) -> LLMProvider:
     """Return an instance of a registered LLM provider."""
 
     provider_cls = PROVIDER_REGISTRY.get(provider_name.lower())
