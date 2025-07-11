@@ -112,6 +112,9 @@ def generate_tests_llm(
     api_key: Optional[str] = None,
     prompt_file: Optional[str] = None,
     prompt_name: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    stop: Optional[list[str]] = None,
 ):
     """
     Generates unit tests for a source file using the specified LLM provider.
@@ -126,7 +129,19 @@ def generate_tests_llm(
 
     prompt = _build_prompt(source_code, prompt_file, prompt_name)
     
-    test_code = provider.generate_text(prompt, model_name_validated)
+    gen_kwargs = {}
+    if temperature is not None:
+        gen_kwargs["temperature"] = temperature
+    if max_tokens is not None:
+        gen_kwargs["max_tokens"] = max_tokens
+    if stop is not None:
+        gen_kwargs["stop"] = stop
+
+    test_code = provider.generate_text(
+        prompt,
+        model_name_validated,
+        **gen_kwargs,
+    )
     return test_code
 
 def run_pytest_tests(test_file, return_trace=False):

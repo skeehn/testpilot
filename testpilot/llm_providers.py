@@ -47,8 +47,20 @@ class LLMProvider(ABC):
     supported_models: Optional[Set[str]] = None
 
     @abstractmethod
-    def generate_text(self, prompt: str, model_name: str) -> str:
-        """Return LLM completion for *prompt* using *model_name*."""
+    def generate_text(
+        self,
+        prompt: str,
+        model_name: str,
+        *,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        stop: Optional[list[str]] = None,
+    ) -> str:
+        """Return LLM completion for *prompt* using *model_name*.
+
+        The optional keyword parameters mirror common LLM generation controls.
+        Implementations may ignore parameters they don’t support.
+        """
         raise NotImplementedError
 
 
@@ -76,13 +88,30 @@ class OpenAIProvider(LLMProvider):
         # Instantiate OpenAI client with the provided key.
         self.client = OpenAI(api_key=self.api_key)
 
-    def generate_text(self, prompt: str, model_name: str) -> str:
+    def generate_text(
+        self,
+        prompt: str,
+        model_name: str,
+        *,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        stop: Optional[list[str]] = None,
+    ) -> str:
+        kwargs = {}
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+        if stop is not None:
+            kwargs["stop"] = stop
+
         chat_completion = self.client.chat.completions.create(
             model=model_name,
             messages=[
                 {"role": "system", "content": "You are an expert software engineer."},
                 {"role": "user", "content": prompt},
             ],
+            **kwargs,
         )
         content = chat_completion.choices[0].message.content
         if "```python" in content:
@@ -116,18 +145,28 @@ class AnthropicProvider(LLMProvider):
         # Instantiate Anthropic client.
         self.client = anthropic.Anthropic(api_key=self.api_key)  # type: ignore[attr-defined]
 
-    def generate_text(self, prompt: str, model_name: str) -> str:
-        """Generate text using Claude models.
+    def generate_text(
+        self,
+        prompt: str,
+        model_name: str,
+        *,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        stop: Optional[list[str]] = None,
+    ) -> str:
+        """Generate text using Claude models."""
 
-        A high `max_tokens` is used by default; providers requiring stricter
-        control can override later when we add CLI flags.
-        """
+        params = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens or 4096,
+        }
+        if temperature is not None:
+            params["temperature"] = temperature
+        if stop is not None:
+            params["stop_sequences"] = stop
 
-        response = self.client.messages.create(  # type: ignore[attr-defined]
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=4096,
-        )
+        response = self.client.messages.create(**params)  # type: ignore[attr-defined]
 
         # The SDK returns `response.content` as a list of blocks; concatenate
         # text parts in order.
@@ -217,20 +256,34 @@ class AzureOpenAIProvider(OpenAIProvider):
     # Overrides
     # ------------------------------------------------------------------
 
-    def generate_text(self, prompt: str, model_name: str | None = None) -> str:  # type: ignore[override]
-        """Generate chat completion using Azure deployment.
-
-        If *model_name* is omitted, the configured deployment name is used.
-        """
+    def generate_text(
+        self,
+        prompt: str,
+        model_name: str | None = None,
+        *,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        stop: Optional[list[str]] = None,
+    ) -> str:  # type: ignore[override]
+        """Generate chat completion using Azure deployment."""
 
         model = model_name or self.deployment
 
-        chat_completion = self.client.chat.completions.create(
+        kwargs: dict = {}
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+        if stop is not None:
+            kwargs["stop"] = stop
+
+        chat_completion = self.client.chat.completions.create(  # type: ignore[call-arg]
             model=model,
             messages=[
                 {"role": "system", "content": "You are an expert software engineer."},
                 {"role": "user", "content": prompt},
             ],
+            **kwargs,
         )
         content = chat_completion.choices[0].message.content
         if "```python" in content:
@@ -287,7 +340,15 @@ class MistralProvider(LLMProvider):
         self.base_url = "https://api-inference.huggingface.co/models"
 
     # The HF API model identifier IS the model name (e.g. mistralai/Mistral-7B).
-    def generate_text(self, prompt: str, model_name: str) -> str:  # type: ignore[override]
+    def generate_text(
+        self,
+        prompt: str,
+        model_name: str,
+        *,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        stop: Optional[list[str]] = None,  # HuggingFace currently ignores stop seq.
+    ) -> str:  # type: ignore[override]
         url = f"{self.base_url}/{model_name}"
 
         headers = {
@@ -296,13 +357,17 @@ class MistralProvider(LLMProvider):
             "Content-Type": "application/json",
         }
 
+        params_dict = {}
+        if max_tokens is not None:
+            params_dict["max_new_tokens"] = max_tokens
+        else:
+            params_dict["max_new_tokens"] = 1024
+        if temperature is not None:
+            params_dict["temperature"] = temperature
+
         payload = {
             "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 1024,
-                "temperature": 0.1,
-                # streaming implicitly enabled by Accept header
-            },
+            "parameters": params_dict,
             "stream": True,
         }
 

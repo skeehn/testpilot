@@ -121,7 +121,36 @@ def help():
     default=None,
     help='Name of template inside prompt YAML (default: "default")',
 )
-def generate(source_file, provider, model, api_key, output_dir, prompt_file, prompt_name):
+@click.option(
+    '--temperature',
+    type=float,
+    default=None,
+    help='Generation temperature',
+)
+@click.option(
+    '--max-tokens',
+    'max_tokens',
+    type=int,
+    default=None,
+    help='Maximum number of tokens to generate',
+)
+@click.option(
+    '--stop',
+    multiple=True,
+    help='Stop sequence (can be repeated)',
+)
+def generate(
+    source_file,
+    provider,
+    model,
+    api_key,
+    output_dir,
+    prompt_file,
+    prompt_name,
+    temperature,
+    max_tokens,
+    stop,
+):
     """
     Generate unit tests for a SOURCE_FILE using an LLM.
     """
@@ -131,6 +160,12 @@ def generate(source_file, provider, model, api_key, output_dir, prompt_file, pro
         extra_kwargs["prompt_file"] = prompt_file
     if prompt_name is not None:
         extra_kwargs["prompt_name"] = prompt_name
+    if temperature is not None:
+        extra_kwargs["temperature"] = temperature
+    if max_tokens is not None:
+        extra_kwargs["max_tokens"] = max_tokens
+    if stop:
+        extra_kwargs["stop"] = list(stop)
 
     test_code = generate_tests_llm(
         source_file,
