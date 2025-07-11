@@ -210,6 +210,98 @@ class AzureOpenAIProvider(OpenAIProvider):
         return content.strip()
 
 
+# ---------------------------------------------------------------------------
+# Mistral via HuggingFace Inference API
+# ---------------------------------------------------------------------------
+
+
+# The HF Inference API is standard HTTP, we use `requests` if available.
+try:
+    import requests  # type: ignore
+except ImportError:  # pragma: no cover
+    requests = None  # type: ignore
+
+if TYPE_CHECKING:  # pragma: no cover
+    import requests as _requests  # type: ignore
+    requests = _requests  # type: ignore
+
+
+@register_provider("mistral")
+@register_provider("hf-mistral")
+class MistralProvider(LLMProvider):
+    """Provider that calls Mistral models via HuggingFace Inference API.
+
+    Usage:
+        export HF_API_TOKEN=...
+        generate_tests_llm(..., provider="mistral", model_name="mistralai/Mistral-7B-Instruct-v0.2")
+
+    The provider streams tokens and accumulates them into a final string. In
+    later phases we will surface the generator object for real-time streaming.
+    """
+
+    def __init__(self, api_key: Optional[str] = None):
+        if requests is None:
+            raise ImportError("requests package is required for MistralProvider")
+
+        self.api_key = api_key or os.environ.get("HF_API_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "HuggingFace API token must be provided via argument or HF_API_TOKEN env var."
+            )
+
+        # HF inference endpoint base.
+        self.base_url = "https://api-inference.huggingface.co/models"
+
+    # The HF API model identifier IS the model name (e.g. mistralai/Mistral-7B).
+    def generate_text(self, prompt: str, model_name: str) -> str:  # type: ignore[override]
+        url = f"{self.base_url}/{model_name}"
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "text/event-stream",  # enable server-sent events
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": 1024,
+                "temperature": 0.1,
+                # streaming implicitly enabled by Accept header
+            },
+            "stream": True,
+        }
+
+        # Accumulate chunks as they arrive.
+        parts: list[str] = []
+
+        with requests.post(url, headers=headers, json=payload, stream=True, timeout=300) as resp:  # type: ignore[attr-defined]
+            resp.raise_for_status()
+            for line in resp.iter_lines(decode_unicode=True):  # type: ignore[call-arg]
+                if not line:
+                    continue
+                # The Inference API streams JSON lines; skip the done token.
+                if line.strip() == "[DONE]":
+                    break
+                try:
+                    # Each line is a JSON dict with {"token": {"text": "..."}, ...}
+                    import json  # local import to avoid top-level cost
+
+                    data = json.loads(line)
+                    token_text = data.get("token", {}).get("text", "")
+                    parts.append(token_text)
+                except Exception:
+                    # If parsing fails, append raw line for visibility.
+                    parts.append(line)
+
+        content = "".join(parts)
+
+        # Remove code fences if present.
+        if "```python" in content:
+            content = content.split("```python", 1)[1].split("```", 1)[0]
+        return content.strip()
+
+
 def get_llm_provider(provider_name: str, api_key: Optional[str] = None) -> LLMProvider:
     """Return an instance of a registered LLM provider."""
 
