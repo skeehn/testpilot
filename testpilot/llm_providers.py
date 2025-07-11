@@ -1,7 +1,18 @@
 import importlib
 import os
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+# Optional runtime dependency handling for the OpenAI client library.
+try:
+    from openai import OpenAI  # type: ignore
+except ImportError:  # pragma: no cover
+    OpenAI = None  # type: ignore
+
+# For static type checkers, provide a stub so that `OpenAI` is always defined.
+if TYPE_CHECKING:  # pragma: no cover
+    from openai import OpenAI as _OpenAI  # type: ignore
+    OpenAI = _OpenAI  # type: ignore
 
 PROVIDER_REGISTRY = {}
 
@@ -24,17 +35,17 @@ class LLMProvider(ABC):
 
 @register_provider("openai")
 class OpenAIProvider(LLMProvider):
-    def __init__(self, api_key: str = None):
-        try:
-            from openai import OpenAI
-        except ImportError as exc:
-            raise ImportError("openai package is not installed.") from exc
+    def __init__(self, api_key: Optional[str] = None):
+        if OpenAI is None:
+            raise ImportError("openai package is not installed.")
+
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError(
                 "OpenAI API key must be provided via argument or "
                 "OPENAI_API_KEY env var."
             )
+        # Instantiate OpenAI client with the provided key.
         self.client = OpenAI(api_key=self.api_key)
 
     def generate_text(self, prompt: str, model_name: str) -> str:
@@ -55,7 +66,7 @@ class OpenAIProvider(LLMProvider):
 class AnthropicProvider(LLMProvider):
     """Stub provider for Anthropic's Claude models."""
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError(
