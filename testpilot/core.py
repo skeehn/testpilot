@@ -144,6 +144,73 @@ def generate_tests_llm(
     )
     return test_code
 
+# ------------------------------------------------------------
+# Regenerate until tests compile helper
+# ------------------------------------------------------------
+
+
+def generate_tests_llm_with_retry(
+    source_file: str,
+    provider_name: str,
+    model_name: Optional[str] = None,
+    *,
+    api_key: Optional[str] = None,
+    prompt_file: Optional[str] = None,
+    prompt_name: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    stop: Optional[list[str]] = None,
+    max_retries: int = 3,
+) -> str:
+    """Generate tests and retry up to *max_retries* times if they don't compile.
+
+    Compilation is validated by attempting to run pytest. Retries occur only for
+    syntax/import errors; logical assertion failures are returned as-is.
+    """
+
+    import tempfile
+    import uuid
+
+    last_code: str | None = None
+    last_trace: str | None = None
+
+    for attempt in range(max_retries + 1):
+        last_code = generate_tests_llm(
+            source_file,
+            provider_name,
+            model_name,
+            api_key=api_key,
+            prompt_file=prompt_file,
+            prompt_name=prompt_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stop=stop,
+        )
+
+        # Write to a temporary file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_path = os.path.join(tmpdir, f"test_{uuid.uuid4().hex}.py")
+            with open(test_path, "w", encoding="utf-8") as f:
+                f.write(last_code)
+
+            output, failed, trace = run_pytest_tests(test_path, return_trace=True)
+
+            if not failed:
+                return last_code
+
+            # If failure due to SyntaxError or ImportError regenerate
+            if "SyntaxError" in trace or "ImportError" in trace:
+                last_trace = trace
+                continue  # try again
+            else:
+                # Logical failures: return as-is
+                return last_code
+
+    # After retries, return last generated code even if still failing
+    # Could log last_trace for caller (CLI will show)
+    return last_code or ""
+
+
 def run_pytest_tests(test_file, return_trace=False):
     """
     Runs pytest on the given test file and returns results.

@@ -139,6 +139,12 @@ def help():
     multiple=True,
     help='Stop sequence (can be repeated)',
 )
+@click.option(
+    '--retries',
+    default=0,
+    type=int,
+    help='Retries to regenerate until tests compile',
+)
 def generate(
     source_file,
     provider,
@@ -150,6 +156,7 @@ def generate(
     temperature,
     max_tokens,
     stop,
+    retries,
 ):
     """
     Generate unit tests for a SOURCE_FILE using an LLM.
@@ -166,14 +173,27 @@ def generate(
         extra_kwargs["max_tokens"] = max_tokens
     if stop:
         extra_kwargs["stop"] = list(stop)
+    if retries:
+        extra_kwargs["max_retries"] = retries
 
-    test_code = generate_tests_llm(
-        source_file,
-        provider,
-        model,
-        api_key,
-        **extra_kwargs,
-    )
+    if retries:
+        from testpilot.core import generate_tests_llm_with_retry
+
+        test_code = generate_tests_llm_with_retry(
+            source_file,
+            provider,
+            model,
+            api_key=api_key,
+            **extra_kwargs,
+        )
+    else:
+        test_code = generate_tests_llm(
+            source_file,
+            provider,
+            model,
+            api_key,
+            **extra_kwargs,
+        )
     base = os.path.basename(source_file)
     test_file = os.path.join(output_dir, f"test_{base}")
     with open(test_file, 'w') as f:
