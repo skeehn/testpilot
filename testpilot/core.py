@@ -289,3 +289,37 @@ def create_github_issue(
         
     except Exception as e:
         raise Exception(f"Failed to create GitHub issue: {str(e)}")
+
+# ------------------------------------------------------------
+# GitHub Gist helper
+# ------------------------------------------------------------
+
+
+def create_github_gist(file_path: str, github_token: str, *, public: bool = False) -> str:
+    """Create a GitHub Gist from *file_path* and return its URL."""
+
+    if Github is None:
+        raise ImportError("PyGithub is not installed. Please install it to use GitHub integration.")
+
+    if not github_token:
+        raise ValueError("GitHub token is required for creating gists.")
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        from pathlib import Path
+
+        g = Github(github_token)
+        user = g.get_user()
+        filename = Path(file_path).name
+        gist = user.create_gist(  # type: ignore[attr-defined,arg-type]
+            public,
+            {filename: {
+                "content": content,
+            }},
+            description=f"Failing tests from TestPilot ({filename})",
+        )
+        return gist.html_url
+    except Exception as e:
+        raise Exception(f"Failed to create GitHub gist: {str(e)}")

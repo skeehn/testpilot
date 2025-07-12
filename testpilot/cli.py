@@ -280,7 +280,8 @@ def run(test_file, quiet):
 @click.option('--repo', required=True, help='GitHub repo (e.g. user/repo)')
 @click.option('--labels', default=None, help='Comma-separated GitHub labels')
 @click.option('--assignees', default=None, help='Comma-separated GitHub assignees')
-def triage(test_file, repo, labels, assignees):
+@click.option('--gist/--no-gist', default=True, help='Attach failing test file as a gist')
+def triage(test_file, repo, labels, assignees, gist):
     """
     Run tests and create a GitHub issue for failures.
     """
@@ -293,11 +294,23 @@ def triage(test_file, repo, labels, assignees):
     assignees_list = [s.strip() for s in assignees.split(',')] if assignees else None
 
     if failed:
+        body = trace
+
+        token = os.getenv("GITHUB_TOKEN")
+        if gist and token:
+            from testpilot.core import create_github_gist
+
+            try:
+                gist_url = create_github_gist(test_file, token, public=False)
+                body += f"\n\nFailing test file shared as Gist: {gist_url}"
+            except Exception as e:
+                click.echo(f"[triage] Warning: failed to create gist ({e})", err=True)
+
         url = create_github_issue(
             repo,
             f"Test failure in {test_file}",
-            trace,
-            os.getenv("GITHUB_TOKEN"),
+            body,
+            token,
             labels=labels_list,
             assignees=assignees_list,
         )
