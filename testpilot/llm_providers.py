@@ -1,7 +1,7 @@
 import importlib
 import os
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 PROVIDER_REGISTRY = {}
 
@@ -29,7 +29,7 @@ class LLMProvider(ABC):
 
 @register_provider("openai")
 class OpenAIProvider(LLMProvider):
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: Optional[str] = None):
         try:
             from openai import OpenAI
         except ImportError as exc:
@@ -93,7 +93,7 @@ Your task is to generate high-quality, comprehensive tests that:
 class AnthropicProvider(LLMProvider):
     """Full implementation of Anthropic's Claude models."""
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: Optional[str] = None):
         try:
             import anthropic
         except ImportError as exc:
@@ -161,7 +161,7 @@ Your task is to generate high-quality, comprehensive tests that:
 class OllamaProvider(LLMProvider):
     """Local model support via Ollama."""
 
-    def __init__(self, api_key: str = None, base_url: str = "http://localhost:11434"):
+    def __init__(self, api_key: Optional[str] = None, base_url: str = "http://localhost:11434"):
         self.base_url = base_url
         self.api_key = api_key  # Not used for Ollama but kept for interface consistency
         
@@ -213,7 +213,7 @@ Your task is to generate high-quality, comprehensive tests that:
         return self.generate_text(enhanced_prompt, model_name)
 
 
-def get_llm_provider(provider_name: str, api_key: str = None, **kwargs) -> LLMProvider:
+def get_llm_provider(provider_name: str, api_key: Optional[str] = None, **kwargs) -> LLMProvider:
     """Return an instance of a registered LLM provider."""
 
     provider_cls = PROVIDER_REGISTRY.get(provider_name.lower())

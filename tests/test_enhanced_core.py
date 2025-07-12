@@ -15,7 +15,7 @@ from pathlib import Path
 # Import our enhanced functionality
 from testpilot.core import (
     CodeAnalyzer,
-    TestVerifier, 
+    CodeTestVerifier,
     generate_tests_llm,
     run_pytest_tests,
     analyze_test_coverage,
@@ -166,7 +166,7 @@ class UserService:
             analyzer = CodeAnalyzer(invalid_code)
 
 
-class TestTestVerifier(unittest.TestCase):
+class TestCodeVerifierClass(unittest.TestCase):
     """Test the test verification and quality assurance system."""
     
     def setUp(self):
@@ -203,7 +203,7 @@ def invalid_syntax_test(
 
     def test_valid_test_verification(self):
         """Test verification of valid test code."""
-        verifier = TestVerifier(self.valid_test_code, self.source_file)
+        verifier = CodeTestVerifier(self.valid_test_code, self.source_file)
         is_valid, issues, corrected_code = verifier.verify()
         
         self.assertTrue(is_valid)
@@ -212,7 +212,7 @@ def invalid_syntax_test(
 
     def test_invalid_test_correction(self):
         """Test automatic correction of invalid test code."""
-        verifier = TestVerifier(self.invalid_test_code, self.source_file)
+        verifier = CodeTestVerifier(self.invalid_test_code, self.source_file)
         is_valid, issues, corrected_code = verifier.verify()
         
         self.assertFalse(is_valid)
@@ -225,7 +225,7 @@ def invalid_syntax_test(
         """Test detection of syntax errors."""
         syntax_error_code = "def test_invalid(\n    # Missing closing parenthesis"
         
-        verifier = TestVerifier(syntax_error_code, self.source_file)
+        verifier = CodeTestVerifier(syntax_error_code, self.source_file)
         is_valid, issues, corrected_code = verifier.verify()
         
         self.assertFalse(is_valid)
@@ -240,7 +240,7 @@ def helper_function():
     pass
 '''
         
-        verifier = TestVerifier(no_tests_code, self.source_file)
+        verifier = CodeTestVerifier(no_tests_code, self.source_file)
         is_valid, issues, corrected_code = verifier.verify()
         
         self.assertFalse(is_valid)
@@ -511,7 +511,7 @@ class TestDivision:
         assert divide(a, b) == expected
 '''
         
-        verifier = TestVerifier(high_quality_test, "my_module.py")
+        verifier = CodeTestVerifier(high_quality_test, "my_module.py")
         is_valid, issues, corrected_code = verifier.verify()
         
         # High quality test should pass verification
@@ -533,7 +533,7 @@ class TestDivision:
                     # Empty code should be handled gracefully
                     continue
                     
-                verifier = TestVerifier(code, "dummy.py")
+                verifier = CodeTestVerifier(code, "dummy.py")
                 # Should not raise unhandled exceptions
                 try:
                     is_valid, issues, corrected_code = verifier.verify()
@@ -700,7 +700,7 @@ class TestTaskManager:
 '''
         
         # Step 3: Verify test code
-        verifier = TestVerifier(mock_test_code, self.source_file)
+        verifier = CodeTestVerifier(mock_test_code, self.source_file)
         is_valid, issues, corrected_code = verifier.verify()
         
         # Should generate valid, comprehensive tests

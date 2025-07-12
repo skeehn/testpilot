@@ -21,7 +21,9 @@ def test_generate_tests_llm(monkeypatch, tmp_path):
     monkeypatch.setattr('testpilot.core.get_llm_provider', fake_get)
 
     result = generate_tests_llm(str(source), 'openai', 'gpt-4o', api_key='key')
-    assert result == "TEST_CODE"
+    # Expect that the verifier added imports to the test code
+    assert "TEST_CODE" in result
+    assert "import pytest" in result
     assert 'foo()' in captured['prompt']
     assert captured['model_name'] == 'gpt-4o'
     assert captured['provider_name'] == 'openai'
@@ -32,5 +34,6 @@ def test_run_pytest_tests(tmp_path):
     test_file = tmp_path / "test_sample.py"
     test_file.write_text("def test_ok():\n    assert 2 == 1 + 1\n")
 
-    output = run_pytest_tests(str(test_file))
+    output, failed, _ = run_pytest_tests(str(test_file))
     assert "1 passed" in output
+    assert not failed
