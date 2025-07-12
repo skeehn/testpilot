@@ -252,13 +252,25 @@ def generate(
     'test_file',
     type=click.Path(exists=True, dir_okay=False, readable=True),
 )
-def run(test_file):
+@click.option('--quiet', is_flag=True, default=False, help='Machine-friendly output (pass/fail only)')
+def run(test_file, quiet):
     """
     Run tests in TEST_FILE using pytest.
     """
     with show_spinner("Running tests"):
-        result = run_pytest_tests(test_file)
-    click.echo(result)
+        output, failed, trace = run_pytest_tests(test_file, return_trace=True)
+
+    if quiet:
+        click.echo("pass" if not failed else "fail")
+        raise SystemExit(0 if not failed else 1)
+
+    click.echo(output)
+
+    # Colourised summary line
+    if failed:
+        click.secho("[run] Tests failed ❌", fg="red")
+    else:
+        click.secho("[run] Tests passed ✅", fg="green")
 
 @cli.command()
 @click.argument(
@@ -280,9 +292,9 @@ def triage(test_file, repo):
             trace,
             os.getenv("GITHUB_TOKEN"),
         )
-        click.echo(f"[triage] Issue created: {url}")
+        click.secho(f"[triage] Issue created: {url}", fg="red")
     else:
-        click.echo("[triage] All tests passed. No issue created.")
+        click.secho("[triage] All tests passed. No issue created.", fg="green")
 
 @cli.command()
 def reset_keys():
@@ -295,6 +307,53 @@ def reset_keys():
         ONBOARD_FLAG.unlink()
     print("API keys cleared. Re-running onboarding...")
     ensure_api_keys()
+
+
+# ---------------------------------------------------------------------------
+# Init command to scaffold default config
+# ---------------------------------------------------------------------------
+
+
+@cli.command(name="init")
+@click.option('--force', is_flag=True, default=False, help='Overwrite existing config files')
+def init_cmd(force):
+    """Scaffold .env and .testpilot config files in the current directory."""
+
+    created_any = False
+
+    # .env template
+    env_template = """# TestPilot configuration – populate your secrets
+OPENAI_API_KEY=
+GITHUB_TOKEN=
+ANTHROPIC_API_KEY=
+HF_API_TOKEN=
+"""
+
+    if ENV_PATH.exists() and not force:
+        click.echo(".env already exists – skipping (use --force to overwrite)")
+    else:
+        with open(ENV_PATH, "w", encoding="utf-8") as f:
+            f.write(env_template)
+        click.echo("[init] .env scaffolded. Remember to add your API keys.")
+        created_any = True
+
+    # .testpilot config (YAML)
+    testpilot_cfg_path = Path(".testpilot.yml")
+    cfg_template = """# Default TestPilot configuration
+default_provider: openai
+default_model: gpt-4o
+output_dir: generated_tests
+"""
+
+    if testpilot_cfg_path.exists() and not force:
+        click.echo(".testpilot.yml already exists – skipping (use --force to overwrite)")
+    else:
+        testpilot_cfg_path.write_text(cfg_template)
+        click.echo("[init] .testpilot.yml scaffolded.")
+        created_any = True
+
+    if not created_any:
+        click.echo("Nothing to do. All config files already present.")
 
 if __name__ == '__main__':
     cli() 
