@@ -270,13 +270,19 @@ def create_github_issue(
         g = Github(github_token)
         repository = g.get_repo(repo)
         
+        from typing import cast, List
+
         final_labels = labels if labels else ["test-failure", "testpilot-auto"]
 
-        issue = repository.create_issue(  # type: ignore[arg-type]
+        # PyGithub stubs expect List[NamedUser] | NotSet. We cast our list[str]
+        # to satisfy the type checker while PyGithub accepts list[str] at runtime.
+        assignees_param: list[str] = assignees or []
+
+        issue = repository.create_issue(
             title=title,
             body=body,
             labels=final_labels,
-            assignees=assignees or None,
+            assignees=assignees_param,
         )
         
         return issue.html_url
