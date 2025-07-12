@@ -2,4 +2,11 @@ click
 openai
 PyGithub
 pytest
-python-dotenv 
+python-dotenv
+# Enhanced AI capabilities
+anthropic
+requests
+# Development dependencies
+coverage
+pytest-cov
+pytest-asyncio 
