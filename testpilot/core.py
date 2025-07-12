@@ -1,10 +1,14 @@
+import ast
 import os
 import subprocess
 import sys
+from pathlib import Path
 from string import Template
-from typing import TYPE_CHECKING, Optional, Set
+from typing import TYPE_CHECKING, Optional, Set, List, Dict, Any
 
 import importlib.resources as pkg_resources
+import tempfile
+import uuid
 
 try:
     import yaml  # type: ignore
@@ -28,6 +32,294 @@ except ImportError:  # pragma: no cover
 if TYPE_CHECKING:  # pragma: no cover
     from github import Github as _Github  # type: ignore
     Github = _Github  # type: ignore
+
+
+# ------------------------------------------------------------
+# Advanced Codebase Analysis for Context-Aware Generation
+# ------------------------------------------------------------
+
+class CodebaseAnalyzer:
+    """Analyzes entire codebase to provide rich context for test generation."""
+    
+    def __init__(self, project_root: str):
+        self.project_root = Path(project_root)
+        self.context_cache: Dict[str, Any] = {}
+    
+    def analyze_file_dependencies(self, target_file: str) -> Dict[str, Any]:
+        """Extract imports, function signatures, and class definitions."""
+        try:
+            with open(target_file, 'r', encoding='utf-8') as f:
+                source = f.read()
+            
+            tree = ast.parse(source)
+            
+            analysis = {
+                'imports': [],
+                'functions': [],
+                'classes': [],
+                'constants': [],
+                'dependencies': set()
+            }
+            
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        analysis['imports'].append(alias.name)
+                        analysis['dependencies'].add(alias.name)
+                
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        analysis['imports'].append(f"from {node.module}")
+                        analysis['dependencies'].add(node.module)
+                
+                elif isinstance(node, ast.FunctionDef):
+                    func_info = {
+                        'name': node.name,
+                        'args': [arg.arg for arg in node.args.args],
+                        'returns': ast.unparse(node.returns) if node.returns else None,
+                        'docstring': ast.get_docstring(node),
+                        'decorators': [ast.unparse(dec) for dec in node.decorator_list]
+                    }
+                    analysis['functions'].append(func_info)
+                
+                elif isinstance(node, ast.ClassDef):
+                    class_info = {
+                        'name': node.name,
+                        'bases': [ast.unparse(base) for base in node.bases],
+                        'methods': [],
+                        'docstring': ast.get_docstring(node)
+                    }
+                    
+                    for item in node.body:
+                        if isinstance(item, ast.FunctionDef):
+                            class_info['methods'].append(item.name)
+                    
+                    analysis['classes'].append(class_info)
+                
+                elif isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            analysis['constants'].append(target.id)
+            
+            return analysis
+            
+        except Exception as e:
+            return {'error': str(e), 'imports': [], 'functions': [], 'classes': [], 'constants': []}
+    
+    def find_related_files(self, target_file: str) -> List[str]:
+        """Find files that might be related to the target file."""
+        target_path = Path(target_file)
+        related_files = []
+        
+        # Look for files in the same directory
+        if target_path.parent.exists():
+            for file in target_path.parent.glob("*.py"):
+                if file != target_path and not file.name.startswith('test_'):
+                    related_files.append(str(file))
+        
+        # Look for existing test files
+        test_patterns = [
+            target_path.parent / f"test_{target_path.stem}.py",
+            target_path.parent / "tests" / f"test_{target_path.stem}.py",
+            target_path.parent.parent / "tests" / f"test_{target_path.stem}.py"
+        ]
+        
+        for test_file in test_patterns:
+            if test_file.exists():
+                related_files.append(str(test_file))
+        
+        return related_files
+    
+    def get_project_context(self, target_file: str) -> Dict[str, Any]:
+        """Get comprehensive project context for better test generation."""
+        if target_file in self.context_cache:
+            return self.context_cache[target_file]
+        
+        context = {
+            'target_analysis': self.analyze_file_dependencies(target_file),
+            'related_files': self.find_related_files(target_file),
+            'project_structure': self._analyze_project_structure(),
+            'testing_patterns': self._detect_testing_patterns()
+        }
+        
+        self.context_cache[target_file] = context
+        return context
+    
+    def _analyze_project_structure(self) -> Dict[str, Any]:
+        """Analyze overall project structure and conventions."""
+        structure = {
+            'has_tests_dir': False,
+            'testing_framework': 'pytest',  # default assumption
+            'package_structure': [],
+            'config_files': []
+        }
+        
+        # Check for common test directories
+        for test_dir in ['tests', 'test', 'testing']:
+            if (self.project_root / test_dir).exists():
+                structure['has_tests_dir'] = True
+                break
+        
+        # Look for config files that might indicate testing setup
+        config_files = ['pytest.ini', 'tox.ini', 'setup.cfg', 'pyproject.toml']
+        for config in config_files:
+            if (self.project_root / config).exists():
+                structure['config_files'].append(config)
+        
+        return structure
+    
+    def _detect_testing_patterns(self) -> Dict[str, Any]:
+        """Detect existing testing patterns in the project."""
+        patterns = {
+            'common_imports': set(),
+            'fixture_patterns': [],
+            'assertion_styles': set()
+        }
+        
+        # Scan existing test files for patterns
+        for test_file in self.project_root.rglob("test_*.py"):
+            try:
+                with open(test_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Extract common testing imports
+                if 'import pytest' in content:
+                    patterns['common_imports'].add('pytest')
+                if 'from unittest' in content:
+                    patterns['common_imports'].add('unittest')
+                if 'import mock' in content or 'from mock' in content:
+                    patterns['common_imports'].add('mock')
+                
+                # Look for fixture patterns
+                if '@pytest.fixture' in content:
+                    patterns['fixture_patterns'].append('pytest_fixtures')
+                
+                # Detect assertion styles
+                if 'assert ' in content:
+                    patterns['assertion_styles'].add('assert')
+                if 'self.assert' in content:
+                    patterns['assertion_styles'].add('unittest')
+                    
+            except Exception:
+                continue
+        
+        return patterns
+
+
+# ------------------------------------------------------------
+# Enhanced Test Validation and Quality Assurance
+# ------------------------------------------------------------
+
+class TestValidator:
+    """Validates generated tests for quality and correctness."""
+    
+    def __init__(self):
+        self.validation_results = []
+    
+    def validate_test_syntax(self, test_code: str) -> bool:
+        """Validate that the generated test code is syntactically correct."""
+        try:
+            ast.parse(test_code)
+            return True
+        except SyntaxError:
+            return False
+    
+    def validate_test_execution(self, test_code: str, target_file: str) -> Dict[str, Any]:
+        """Run the generated tests to ensure they execute without errors."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_path = os.path.join(tmpdir, f"test_{uuid.uuid4().hex}.py")
+            
+            # Write test code to temporary file
+            with open(test_path, "w", encoding="utf-8") as f:
+                f.write(test_code)
+            
+            # Try to run the test
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-m", "pytest", test_path, "-v", "--tb=short"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                return {
+                    'success': result.returncode == 0,
+                    'output': result.stdout,
+                    'errors': result.stderr,
+                    'returncode': result.returncode
+                }
+            except subprocess.TimeoutExpired:
+                return {
+                    'success': False,
+                    'output': '',
+                    'errors': 'Test execution timed out',
+                    'returncode': -1
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'output': '',
+                    'errors': str(e),
+                    'returncode': -1
+                }
+    
+    def check_test_coverage(self, test_code: str, target_file: str) -> Dict[str, Any]:
+        """Analyze what the generated tests actually cover."""
+        # This is a simplified coverage analysis
+        # In a full implementation, we'd use coverage.py or similar
+        
+        coverage_info = {
+            'functions_tested': [],
+            'classes_tested': [],
+            'edge_cases_covered': [],
+            'coverage_score': 0.0
+        }
+        
+        # Parse the test code to see what it's testing
+        try:
+            test_tree = ast.parse(test_code)
+            target_analysis = CodebaseAnalyzer(".").analyze_file_dependencies(target_file)
+            
+            # Look for function calls in tests that match target functions
+            for node in ast.walk(test_tree):
+                if isinstance(node, ast.Call):
+                    if isinstance(node.func, ast.Name):
+                        func_name = node.func.id
+                        for target_func in target_analysis['functions']:
+                            if target_func['name'] in func_name or func_name in target_func['name']:
+                                coverage_info['functions_tested'].append(target_func['name'])
+            
+            # Calculate a simple coverage score
+            total_functions = len(target_analysis['functions'])
+            tested_functions = len(set(coverage_info['functions_tested']))
+            
+            if total_functions > 0:
+                coverage_info['coverage_score'] = tested_functions / total_functions
+            
+        except Exception as e:
+            coverage_info['error'] = str(e)
+        
+        return coverage_info
+    
+    def validate_comprehensive(self, test_code: str, target_file: str) -> Dict[str, Any]:
+        """Run comprehensive validation on generated tests."""
+        results = {
+            'syntax_valid': self.validate_test_syntax(test_code),
+            'execution_results': self.validate_test_execution(test_code, target_file),
+            'coverage_analysis': self.check_test_coverage(test_code, target_file),
+            'overall_quality_score': 0.0
+        }
+        
+        # Calculate overall quality score
+        score = 0.0
+        if results['syntax_valid']:
+            score += 0.3
+        if results['execution_results']['success']:
+            score += 0.4
+        score += results['coverage_analysis']['coverage_score'] * 0.3
+        
+        results['overall_quality_score'] = score
+        return results
 
 
 def _validate_model(provider, model_name: Optional[str]):
@@ -115,20 +407,41 @@ def generate_tests_llm(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     stop: Optional[list[str]] = None,
+    use_context_analysis: bool = True,
+    validation_enabled: bool = True,
 ):
     """
-    Generates unit tests for a source file using the specified LLM provider.
+    Generates unit tests for a source file using advanced AI with context awareness.
+    
+    This enhanced version provides:
+    - Deep codebase analysis for better context
+    - Quality validation of generated tests
+    - Automatic retry for failed generations
+    - Coverage analysis and optimization
+    
     Returns the generated test code as a string.
     """
 
     provider = get_llm_provider(provider_name, api_key)
     model_name_validated = _validate_model(provider, model_name)
 
+    # Initialize context analyzer and validator
+    project_root = str(Path(source_file).parent)
+    analyzer = CodebaseAnalyzer(project_root) if use_context_analysis else None
+    validator = TestValidator() if validation_enabled else None
+
     with open(source_file, "r", encoding="utf-8") as f:
         source_code = f.read()
 
-    prompt = _build_prompt(source_code, prompt_file, prompt_name)
-    
+    # Build enhanced prompt with context
+    if analyzer:
+        context = analyzer.get_project_context(source_file)
+        enhanced_prompt = _build_context_aware_prompt(
+            source_code, context, prompt_file, prompt_name
+        )
+    else:
+        enhanced_prompt = _build_prompt(source_code, prompt_file, prompt_name)
+
     gen_kwargs = {}
     if temperature is not None:
         gen_kwargs["temperature"] = temperature
@@ -137,12 +450,92 @@ def generate_tests_llm(
     if stop is not None:
         gen_kwargs["stop"] = stop
 
-    test_code = provider.generate_text(
-        prompt,
-        model_name_validated,
-        **gen_kwargs,
+    # Generate tests with potential retry for quality
+    max_attempts = 3
+    best_test_code = None
+    best_quality_score = 0.0
+
+    for attempt in range(max_attempts):
+        test_code = provider.generate_text(
+            enhanced_prompt,
+            model_name_validated,
+            **gen_kwargs,
+        )
+
+        if not validation_enabled or validator is None:
+            return test_code
+
+        # Validate the generated tests
+        validation_results = validator.validate_comprehensive(test_code, source_file)
+        quality_score = validation_results['overall_quality_score']
+
+        # Keep track of the best attempt
+        if quality_score > best_quality_score:
+            best_quality_score = quality_score
+            best_test_code = test_code
+
+        # If we got high quality tests, return immediately
+        if quality_score >= 0.8:  # 80% quality threshold
+            return test_code
+
+        # If syntax is invalid or tests don't run, try again with feedback
+        if not validation_results['syntax_valid'] or not validation_results['execution_results']['success']:
+            # Add feedback to the prompt for next attempt
+            error_feedback = f"\n\nPrevious attempt had issues: {validation_results['execution_results'].get('errors', 'Syntax error')}\nPlease fix these issues in the next generation."
+            enhanced_prompt += error_feedback
+
+    # Return the best attempt we got
+    return best_test_code or test_code
+
+
+def _build_context_aware_prompt(
+    source_code: str, 
+    context: Dict[str, Any], 
+    prompt_file: Optional[str], 
+    prompt_name: Optional[str]
+) -> str:
+    """Build an enhanced prompt that includes codebase context."""
+    
+    # Get the base template
+    template_str = _load_prompt_template(prompt_file, prompt_name)
+    
+    # Extract context information
+    target_analysis = context.get('target_analysis', {})
+    testing_patterns = context.get('testing_patterns', {})
+    project_structure = context.get('project_structure', {})
+    
+    # Build context information string
+    context_info = []
+    
+    if target_analysis.get('functions'):
+        func_names = [f['name'] for f in target_analysis['functions']]
+        context_info.append(f"Functions to test: {', '.join(func_names)}")
+    
+    if target_analysis.get('classes'):
+        class_names = [c['name'] for c in target_analysis['classes']]
+        context_info.append(f"Classes to test: {', '.join(class_names)}")
+    
+    if target_analysis.get('imports'):
+        context_info.append(f"Key dependencies: {', '.join(target_analysis['imports'][:5])}")
+    
+    if testing_patterns.get('common_imports'):
+        context_info.append(f"Project uses: {', '.join(testing_patterns['common_imports'])}")
+    
+    if testing_patterns.get('assertion_styles'):
+        context_info.append(f"Assertion style: {', '.join(testing_patterns['assertion_styles'])}")
+    
+    # Enhance the template with context
+    context_section = "\n".join(context_info) if context_info else "No additional context available."
+    
+    enhanced_template = template_str.replace(
+        "$source_code", 
+        f"$source_code\n\nProject Context:\n{context_section}"
     )
-    return test_code
+    
+    # Use string.Template for substitution
+    tmpl = Template(enhanced_template)
+    return tmpl.safe_substitute(source_code=source_code)
+
 
 # ------------------------------------------------------------
 # Regenerate until tests compile helper
