@@ -309,15 +309,27 @@ def create_github_gist(file_path: str, github_token: str, *, public: bool = Fals
             content = f.read()
 
         from pathlib import Path
+        from typing import Any, Dict, cast
+
+        # Build files dict using PyGithub's InputFileContent when available.
+        try:
+            from github.InputFileContent import InputFileContent  # type: ignore
+
+            files_param: Dict[str, Any] = {  # noqa: ANN401
+                Path(file_path).name: InputFileContent(content)
+            }
+        except Exception:
+            # Fallback to raw mapping accepted at runtime; cast for type checker
+            files_param = cast(Dict[str, Any], {
+                Path(file_path).name: {"content": content}
+            })
 
         g = Github(github_token)
         user = g.get_user()
         filename = Path(file_path).name
-        gist = user.create_gist(  # type: ignore[attr-defined,arg-type]
+        gist = user.create_gist(  # type: ignore[attr-defined]
             public,
-            {filename: {
-                "content": content,
-            }},
+            files_param,
             description=f"Failing tests from TestPilot ({filename})",
         )
         return gist.html_url
