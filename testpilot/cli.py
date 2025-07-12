@@ -1,381 +1,290 @@
+import argparse
 import os
+import sys
 from pathlib import Path
-from contextlib import contextmanager
-
-import click
-from dotenv import load_dotenv, set_key
-
-# Optional rich spinner
-try:
-    from rich.progress import Progress, SpinnerColumn, TextColumn  # type: ignore
-except ImportError:  # pragma: no cover
-    Progress = None  # type: ignore
-
-
-@contextmanager
-def show_spinner(message: str):
-    """Context manager to display a spinner while executing a block."""
-
-    if Progress is None:
-        # Fallback: simple message
-        click.echo(f"{message}...")
-        yield
-    else:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-        ) as progress:
-            task = progress.add_task(description=message, total=None)
-            try:
-                yield
-            finally:
-                progress.update(task, completed=1)
+from typing import Optional
 
 from testpilot.core import (
-    create_github_issue,
     generate_tests_llm,
     run_pytest_tests,
+    create_github_issue,
+    CodebaseAnalyzer,
+    TestValidator,
 )
 
-ENV_PATH = Path(".env")
-ONBOARD_FLAG = Path(".testpilot_onboarded")
 
-WELCOME = """
-🚀 Welcome to TestPilot!
+def create_parser() -> argparse.ArgumentParser:
+    """Create the argument parser for TestPilot CLI."""
+    parser = argparse.ArgumentParser(
+        description="🚀 TestPilot 2.0 - AI-Powered Test Generation Revolution",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Basic test generation
+  testpilot generate my_module.py
 
-TestPilot is your AI-powered CLI for generating, running, and triaging Python tests.
+  # Context-aware generation with validation (recommended)
+  testpilot generate my_module.py --use-context --validate
 
-What can you do?
-- Generate unit tests for your code with an LLM
-- Run tests and see results instantly
-- Triage failures to GitHub issues
+  # Generate and run tests
+  testpilot generate my_module.py --run
 
-Get started in seconds:
-  1. Enter your API keys when prompted
-  2. Run: testpilot generate my_module.py
-  3. Run: testpilot run generated_tests/test_my_module.py
-  4. Run: testpilot triage ...
+  # Generate tests with specific provider
+  testpilot generate my_module.py --provider anthropic --model claude-3-sonnet
 
-For help, run: testpilot help
-Docs: https://github.com/yourusername/testpilot#readme
-"""
+For more information, visit: https://github.com/your-org/testpilot
+        """,
+    )
 
-QUICKSTART = """
-✅ Setup complete! Here’s your next steps:
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-1. Generate tests:
-   testpilot generate my_module.py
-2. Run tests:
-   testpilot run generated_tests/test_my_module.py
-3. Triage failures:
-   testpilot triage generated_tests/test_my_module.py --repo yourusername/yourrepo
+    # Generate command
+    generate_parser = subparsers.add_parser(
+        "generate", 
+        help="Generate tests for Python files",
+        description="Generate comprehensive unit tests using AI with advanced context awareness"
+    )
+    
+    generate_parser.add_argument(
+        "source_file", 
+        help="Python source file to generate tests for"
+    )
+    
+    # AI Provider options
+    generate_parser.add_argument(
+        "--provider",
+        default="openai",
+        choices=["openai", "anthropic", "azure-openai", "mistral", "huggingface"],
+        help="AI provider to use (default: openai)"
+    )
+    generate_parser.add_argument("--model", help="Specific model to use")
+    generate_parser.add_argument("--api-key", help="API key for the provider")
+    generate_parser.add_argument("--temperature", type=float, help="Temperature for generation (0.0-1.0)")
+    generate_parser.add_argument("--max-tokens", type=int, help="Maximum tokens to generate")
 
-For more, run: testpilot help
-"""
+    # Context and Quality options  
+    generate_parser.add_argument(
+        "--use-context", 
+        action="store_true",
+        help="🧠 Enable context-aware generation (analyzes entire codebase)"
+    )
+    generate_parser.add_argument(
+        "--validate", 
+        action="store_true",
+        help="✅ Enable quality validation and auto-retry"
+    )
+    generate_parser.add_argument(
+        "--quality-threshold",
+        type=float,
+        default=0.8,
+        help="Quality threshold for test acceptance (0.0-1.0, default: 0.8)"
+    )
 
-HELP_TEXT = """
-TestPilot CLI - AI-powered test generation, execution, and triage
+    # Output options
+    generate_parser.add_argument(
+        "--output", "-o", 
+        help="Output file path (default: test_{source_filename}.py)"
+    )
+    generate_parser.add_argument(
+        "--overwrite", 
+        action="store_true",
+        help="Overwrite existing test file"
+    )
+    generate_parser.add_argument(
+        "--append", 
+        action="store_true",
+        help="Append to existing test file"
+    )
+    generate_parser.add_argument(
+        "--quiet", "-q", 
+        action="store_true",
+        help="Suppress progress output"
+    )
 
-Usage:
-  testpilot generate <source_file>
-  testpilot run <test_file>
-  testpilot triage <test_file> --repo <repo>
-  testpilot reset-keys
-  testpilot help
+    # Execution options
+    generate_parser.add_argument(
+        "--run", 
+        action="store_true",
+        help="Run generated tests immediately"
+    )
 
-Quick Start:
-  1. testpilot generate my_module.py
-  2. testpilot run generated_tests/test_my_module.py
-  3. testpilot triage generated_tests/test_my_module.py --repo yourusername/yourrepo
+    # Advanced options
+    generate_parser.add_argument("--prompt-file", help="Custom prompt template file")
+    generate_parser.add_argument("--prompt-name", help="Named prompt template to use")
+    generate_parser.add_argument(
+        "--show-analysis",
+        action="store_true",
+        help="Show detailed codebase analysis results"
+    )
+    generate_parser.add_argument(
+        "--show-validation",
+        action="store_true", 
+        help="Show detailed validation results"
+    )
 
-Docs: https://github.com/yourusername/testpilot#readme
-"""
+    # Run command
+    run_parser = subparsers.add_parser("run", help="Run existing tests")
+    run_parser.add_argument("test_file", help="Test file to run")
+    run_parser.add_argument("--create-issues", action="store_true", help="Create GitHub issues for failures")
+    run_parser.add_argument("--github-token", help="GitHub token for issue creation")
+    run_parser.add_argument("--repo", help="GitHub repository (owner/repo)")
 
-def ensure_api_keys():
-    load_dotenv(dotenv_path=ENV_PATH)
-    openai_key = os.getenv("OPENAI_API_KEY")
-    github_token = os.getenv("GITHUB_TOKEN")
+    return parser
 
-    if not openai_key:
-        openai_key = input("Enter your OpenAI API Key: ").strip()
-        set_key(str(ENV_PATH), "OPENAI_API_KEY", openai_key)
-    if not github_token:
-        github_token = input("Enter your GitHub Token (for triage, optional): ").strip()
-        if github_token:
-            set_key(str(ENV_PATH), "GITHUB_TOKEN", github_token)
-    # Show quickstart after first setup
-    if not ONBOARD_FLAG.exists():
-        print(QUICKSTART)
-        ONBOARD_FLAG.write_text("onboarded")
 
-@click.group()
-def cli():
-    # On first run, show onboarding message
-    if not ONBOARD_FLAG.exists():
-        print(WELCOME)
-    ensure_api_keys()
+def handle_generate_command(args):
+    """Handle the generate command with enhanced features."""
+    if not args.quiet:
+        print("🚀 TestPilot 2.0 - Generating tests...")
+        if args.use_context:
+            print("🧠 Context analysis enabled")
+        if args.validate:
+            print("✅ Quality validation enabled")
+    
+    # Prepare generation arguments
+    gen_kwargs = {
+        "use_context_analysis": args.use_context,
+        "validation_enabled": args.validate,
+    }
+    
+    if args.temperature is not None:
+        gen_kwargs["temperature"] = args.temperature
+    if args.max_tokens is not None:
+        gen_kwargs["max_tokens"] = args.max_tokens
+    if args.prompt_file:
+        gen_kwargs["prompt_file"] = args.prompt_file
+    if args.prompt_name:
+        gen_kwargs["prompt_name"] = args.prompt_name
 
-@cli.command()
-def help():
-    """Show help, quick start, and docs."""
-    print(HELP_TEXT)
+    # Show context analysis if requested
+    if args.show_analysis and args.use_context:
+        print("\n🔍 Analyzing codebase...")
+        analyzer = CodebaseAnalyzer(str(Path(args.source_file).parent))
+        context = analyzer.get_project_context(args.source_file)
+        
+        target_analysis = context['target_analysis']
+        print(f"📊 Found {len(target_analysis['functions'])} functions")
+        print(f"🏗️ Found {len(target_analysis['classes'])} classes")
+        print(f"📦 Found {len(target_analysis['imports'])} imports")
+        
+        testing_patterns = context['testing_patterns']
+        if testing_patterns['common_imports']:
+            print(f"🧪 Testing frameworks: {', '.join(testing_patterns['common_imports'])}")
 
-@cli.command()
-@click.argument(
-    'source_file',
-    type=click.Path(exists=True, dir_okay=False, readable=True),
-)
-@click.option('--provider', default='openai', help='LLM provider (default: openai)')
-@click.option('--model', default='gpt-4o', help='Model name (default: gpt-4o)')
-@click.option(
-    '--api-key',
-    default=None,
-    help='API key for LLM provider (default: env var)',
-)
-@click.option(
-    '--output-dir',
-    default='./generated_tests',
-    help='Directory to save generated tests',
-)
-@click.option('--overwrite', is_flag=True, default=False, help='Overwrite existing test file')
-@click.option('--append', 'append_mode', is_flag=True, default=False, help='Append to existing test file')
-@click.option(
-    '--prompt-file',
-    default=None,
-    type=click.Path(exists=True, dir_okay=False, readable=True),
-    help='YAML file containing prompt templates',
-)
-@click.option(
-    '--prompt-name',
-    default=None,
-    help='Name of template inside prompt YAML (default: "default")',
-)
-@click.option(
-    '--temperature',
-    type=float,
-    default=None,
-    help='Generation temperature',
-)
-@click.option(
-    '--max-tokens',
-    'max_tokens',
-    type=int,
-    default=None,
-    help='Maximum number of tokens to generate',
-)
-@click.option(
-    '--stop',
-    multiple=True,
-    help='Stop sequence (can be repeated)',
-)
-@click.option(
-    '--retries',
-    default=0,
-    type=int,
-    help='Retries to regenerate until tests compile',
-)
-def generate(
-    source_file,
-    provider,
-    model,
-    api_key,
-    output_dir,
-    prompt_file,
-    prompt_name,
-    overwrite,
-    append_mode,
-    temperature,
-    max_tokens,
-    stop,
-    retries,
-):
-    """
-    Generate unit tests for a SOURCE_FILE using an LLM.
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    extra_kwargs = {}
-    if prompt_file is not None:
-        extra_kwargs["prompt_file"] = prompt_file
-    if prompt_name is not None:
-        extra_kwargs["prompt_name"] = prompt_name
-    if temperature is not None:
-        extra_kwargs["temperature"] = temperature
-    if max_tokens is not None:
-        extra_kwargs["max_tokens"] = max_tokens
-    if stop:
-        extra_kwargs["stop"] = list(stop)
-    if retries:
-        extra_kwargs["max_retries"] = retries
-
-    with show_spinner("Generating tests"):
-        if retries:
-            from testpilot.core import generate_tests_llm_with_retry
-
-            test_code = generate_tests_llm_with_retry(
-                source_file,
-                provider,
-                model,
-                api_key=api_key,
-                **extra_kwargs,
-            )
+    # Generate tests
+    try:
+        if not args.quiet:
+            print("\n⚡ Generating tests...")
+        
+        test_code = generate_tests_llm(
+            args.source_file,
+            args.provider,
+            model_name=args.model,
+            api_key=args.api_key,
+            **gen_kwargs
+        )
+        
+        # Determine output file
+        if args.output:
+            output_file = args.output
         else:
-            test_code = generate_tests_llm(
-                source_file,
-                provider,
-                model,
-                api_key,
-                **extra_kwargs,
-            )
-    base = os.path.basename(source_file)
-    test_file = os.path.join(output_dir, f"test_{base}")
+            source_path = Path(args.source_file)
+            output_file = f"test_{source_path.name}"
+        
+        # Check if file exists
+        if os.path.exists(output_file) and not (args.overwrite or args.append):
+            print(f"❌ Error: {output_file} already exists. Use --overwrite or --append")
+            return 1
+        
+        # Write the test file
+        mode = 'a' if args.append else 'w'
+        with open(output_file, mode, encoding='utf-8') as f:
+            if args.append:
+                f.write("\n\n")
+            f.write(test_code)
+        
+        if not args.quiet:
+            action = "Appended to" if args.append else "Generated"
+            print(f"✅ {action} {output_file}")
+        
+        # Show validation results if requested
+        if args.show_validation and args.validate:
+            print("\n📊 Validation Results:")
+            validator = TestValidator()
+            results = validator.validate_comprehensive(test_code, args.source_file)
+            print(f"  Syntax valid: {'✅' if results['syntax_valid'] else '❌'}")
+            print(f"  Tests execute: {'✅' if results['execution_results']['success'] else '❌'}")
+            print(f"  Coverage score: {results['coverage_analysis']['coverage_score']:.1%}")
+            print(f"  Quality score: {results['overall_quality_score']:.1%}")
+        
+        # Run tests if requested
+        if args.run:
+            if not args.quiet:
+                print(f"\n🔧 Running tests in {output_file}...")
+            
+            output, failed, _ = run_pytest_tests(output_file, return_trace=True)
+            
+            if not args.quiet:
+                print(output)
+                if failed:
+                    print("❌ Tests failed")
+                else:
+                    print("✅ All tests passed")
+            
+            return 1 if failed else 0
+        
+        return 0
+        
+    except Exception as e:
+        print(f"❌ Error generating tests: {e}")
+        return 1
 
-    file_exists = os.path.exists(test_file)
-    if file_exists and not (overwrite or append_mode):
-        click.echo(
-            f"[generate] Error: {test_file} already exists. Use --overwrite or --append to modify.",
-            err=True,
-        )
-        raise SystemExit(1)
 
-    mode = 'a' if append_mode else 'w'
-    with open(test_file, mode) as f:
-        if append_mode:
-            f.write("\n\n")
-        f.write(test_code)
-
-    action = "Appended to" if append_mode and file_exists else "Test file written to"
-    click.echo(f"[generate] {action} {test_file}")
-
-@cli.command()
-@click.argument(
-    'test_file',
-    type=click.Path(exists=True, dir_okay=False, readable=True),
-)
-@click.option('--quiet', is_flag=True, default=False, help='Machine-friendly output (pass/fail only)')
-def run(test_file, quiet):
-    """
-    Run tests in TEST_FILE using pytest.
-    """
-    with show_spinner("Running tests"):
-        output, failed, trace = run_pytest_tests(test_file, return_trace=True)
-
-    if quiet:
-        click.echo("pass" if not failed else "fail")
-        raise SystemExit(0 if not failed else 1)
-
-    click.echo(output)
-
-    # Colourised summary line
+def handle_run_command(args):
+    """Handle the run command."""
+    print(f"🔧 Running tests in {args.test_file}...")
+    
+    output, failed, trace = run_pytest_tests(args.test_file, return_trace=True)
+    print(output)
+    
     if failed:
-        click.secho("[run] Tests failed ❌", fg="red")
-    else:
-        click.secho("[run] Tests passed ✅", fg="green")
-
-@cli.command()
-@click.argument(
-    'test_file',
-    type=click.Path(exists=True, dir_okay=False, readable=True),
-)
-@click.option('--repo', required=True, help='GitHub repo (e.g. user/repo)')
-@click.option('--labels', default=None, help='Comma-separated GitHub labels')
-@click.option('--assignees', default=None, help='Comma-separated GitHub assignees')
-@click.option('--gist/--no-gist', default=True, help='Attach failing test file as a gist')
-def triage(test_file, repo, labels, assignees, gist):
-    """
-    Run tests and create a GitHub issue for failures.
-    """
-    with show_spinner("Running tests"):
-        result, failed, trace = run_pytest_tests(test_file, return_trace=True)
-
-    click.echo(result)
-
-    labels_list = [s.strip() for s in labels.split(',')] if labels else None
-    assignees_list = [s.strip() for s in assignees.split(',')] if assignees else None
-
-    if failed:
-        body = trace
-
-        token = os.getenv("GITHUB_TOKEN")
-        if gist and token:
-            from testpilot.core import create_github_gist
-
+        print("❌ Tests failed")
+        
+        if args.create_issues and args.repo:
+            print("📝 Creating GitHub issue...")
             try:
-                gist_url = create_github_gist(test_file, token, public=False)
-                body += f"\n\nFailing test file shared as Gist: {gist_url}"
+                url = create_github_issue(
+                    args.repo,
+                    f"Test failure in {args.test_file}",
+                    trace,
+                    args.github_token or os.getenv("GITHUB_TOKEN")
+                )
+                print(f"✅ Issue created: {url}")
             except Exception as e:
-                click.echo(f"[triage] Warning: failed to create gist ({e})", err=True)
-
-        url = create_github_issue(
-            repo,
-            f"Test failure in {test_file}",
-            body,
-            token,
-            labels=labels_list,
-            assignees=assignees_list,
-        )
-        click.secho(f"[triage] Issue created: {url}", fg="red")
+                print(f"❌ Failed to create issue: {e}")
     else:
-        click.secho("[triage] All tests passed. No issue created.", fg="green")
-
-@cli.command()
-def reset_keys():
-    """
-    Clear API keys and onboarding flag, then prompt for new keys.
-    """
-    if ENV_PATH.exists():
-        ENV_PATH.unlink()
-    if ONBOARD_FLAG.exists():
-        ONBOARD_FLAG.unlink()
-    print("API keys cleared. Re-running onboarding...")
-    ensure_api_keys()
+        print("✅ All tests passed")
+    
+    return 1 if failed else 0
 
 
-# ---------------------------------------------------------------------------
-# Init command to scaffold default config
-# ---------------------------------------------------------------------------
-
-
-@cli.command(name="init")
-@click.option('--force', is_flag=True, default=False, help='Overwrite existing config files')
-def init_cmd(force):
-    """Scaffold .env and .testpilot config files in the current directory."""
-
-    created_any = False
-
-    # .env template
-    env_template = """# TestPilot configuration – populate your secrets
-OPENAI_API_KEY=
-GITHUB_TOKEN=
-ANTHROPIC_API_KEY=
-HF_API_TOKEN=
-"""
-
-    if ENV_PATH.exists() and not force:
-        click.echo(".env already exists – skipping (use --force to overwrite)")
+def main():
+    """Main CLI entry point."""
+    parser = create_parser()
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        return 1
+    
+    if args.command == "generate":
+        return handle_generate_command(args)
+    elif args.command == "run":
+        return handle_run_command(args)
     else:
-        with open(ENV_PATH, "w", encoding="utf-8") as f:
-            f.write(env_template)
-        click.echo("[init] .env scaffolded. Remember to add your API keys.")
-        created_any = True
+        print(f"Unknown command: {args.command}")
+        return 1
 
-    # .testpilot config (YAML)
-    testpilot_cfg_path = Path(".testpilot.yml")
-    cfg_template = """# Default TestPilot configuration
-default_provider: openai
-default_model: gpt-4o
-output_dir: generated_tests
-"""
 
-    if testpilot_cfg_path.exists() and not force:
-        click.echo(".testpilot.yml already exists – skipping (use --force to overwrite)")
-    else:
-        testpilot_cfg_path.write_text(cfg_template)
-        click.echo("[init] .testpilot.yml scaffolded.")
-        created_any = True
-
-    if not created_any:
-        click.echo("Nothing to do. All config files already present.")
-
-if __name__ == '__main__':
-    cli() 
+if __name__ == "__main__":
+    sys.exit(main())

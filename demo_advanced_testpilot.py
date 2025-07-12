@@ -278,7 +278,13 @@ def demonstrate_enhanced_generation():
     print("🚀 ENHANCED GENERATION DEMONSTRATION")
     print("=" * 50)
     
-    temp_dir, sample_module, context = create_sample_project()
+    temp_dir, sample_module = create_sample_project()
+    
+    # Import our enhanced analyzer
+    from testpilot.core import CodebaseAnalyzer
+    
+    analyzer = CodebaseAnalyzer(str(temp_dir))
+    context = analyzer.get_project_context(str(sample_module))
     
     print("🎯 Generating context-aware tests...")
     print("─" * 40)

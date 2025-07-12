@@ -409,6 +409,7 @@ def generate_tests_llm(
     stop: Optional[list[str]] = None,
     use_context_analysis: bool = True,
     validation_enabled: bool = True,
+    use_cache: bool = True,
 ):
     """
     Generates unit tests for a source file using advanced AI with context awareness.
@@ -418,9 +419,17 @@ def generate_tests_llm(
     - Quality validation of generated tests
     - Automatic retry for failed generations
     - Coverage analysis and optimization
+    - Intelligent caching for performance
+    - Performance monitoring and optimization
     
     Returns the generated test code as a string.
     """
+    import time
+    from testpilot.streaming import get_cache, get_monitor
+    
+    start_time = time.time()
+    cache = get_cache() if use_cache else None
+    monitor = get_monitor()
 
     provider = get_llm_provider(provider_name, api_key)
     model_name_validated = _validate_model(provider, model_name)
@@ -435,12 +444,40 @@ def generate_tests_llm(
 
     # Build enhanced prompt with context
     if analyzer:
-        context = analyzer.get_project_context(source_file)
+        context_start = time.time()
+        
+        # Check cache for context first
+        if cache:
+            cached_context = cache.get_cached_context(source_file)
+            if cached_context:
+                context = cached_context['context']
+                monitor.record_cache_hit()
+            else:
+                context = analyzer.get_project_context(source_file)
+                cache.cache_context(source_file, context)
+                monitor.record_cache_miss()
+        else:
+            context = analyzer.get_project_context(source_file)
+        
+        monitor.record_context_time(time.time() - context_start)
+        
         enhanced_prompt = _build_context_aware_prompt(
             source_code, context, prompt_file, prompt_name
         )
     else:
         enhanced_prompt = _build_prompt(source_code, prompt_file, prompt_name)
+
+    # Check cache for existing test generation
+    if cache:
+        cached_test = cache.get_cached_test(
+            source_code, enhanced_prompt, provider_name, model_name_validated
+        )
+        if cached_test:
+            monitor.record_cache_hit()
+            monitor.record_generation_time(time.time() - start_time)
+            return cached_test['test_code']
+        else:
+            monitor.record_cache_miss()
 
     gen_kwargs = {}
     if temperature is not None:
@@ -456,17 +493,31 @@ def generate_tests_llm(
     best_quality_score = 0.0
 
     for attempt in range(max_attempts):
+        generation_start = time.time()
+        
         test_code = provider.generate_text(
             enhanced_prompt,
             model_name_validated,
             **gen_kwargs,
         )
+        
+        generation_time = time.time() - generation_start
+        monitor.record_generation_time(generation_time)
 
         if not validation_enabled or validator is None:
+            # Cache the result if caching is enabled
+            if cache:
+                cache.cache_test(
+                    source_code, enhanced_prompt, provider_name, 
+                    model_name_validated, test_code
+                )
             return test_code
 
         # Validate the generated tests
+        validation_start = time.time()
         validation_results = validator.validate_comprehensive(test_code, source_file)
+        monitor.record_validation_time(time.time() - validation_start)
+        
         quality_score = validation_results['overall_quality_score']
 
         # Keep track of the best attempt
@@ -474,8 +525,13 @@ def generate_tests_llm(
             best_quality_score = quality_score
             best_test_code = test_code
 
-        # If we got high quality tests, return immediately
+        # If we got high quality tests, cache and return immediately
         if quality_score >= 0.8:  # 80% quality threshold
+            if cache:
+                cache.cache_test(
+                    source_code, enhanced_prompt, provider_name,
+                    model_name_validated, test_code, quality_score
+                )
             return test_code
 
         # If syntax is invalid or tests don't run, try again with feedback
@@ -484,8 +540,16 @@ def generate_tests_llm(
             error_feedback = f"\n\nPrevious attempt had issues: {validation_results['execution_results'].get('errors', 'Syntax error')}\nPlease fix these issues in the next generation."
             enhanced_prompt += error_feedback
 
-    # Return the best attempt we got
-    return best_test_code or test_code
+    # Cache the best attempt we got
+    final_result = best_test_code or test_code
+    if cache and final_result:
+        cache.cache_test(
+            source_code, enhanced_prompt, provider_name,
+            model_name_validated, final_result, best_quality_score
+        )
+    
+    # Ensure we always return a string
+    return final_result if final_result else "# No test code generated"
 
 
 def _build_context_aware_prompt(
