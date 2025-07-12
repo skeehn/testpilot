@@ -279,7 +279,7 @@ class TestEnhancedLLMProviders(unittest.TestCase):
 
     def test_anthropic_provider_implementation(self):
         """Test Anthropic provider implementation."""
-        with patch('anthropic.Anthropic') as mock_anthropic:
+        with patch('testpilot.llm_providers.anthropic.Anthropic') as mock_anthropic:
             # Mock the Anthropic client
             mock_client = MagicMock()
             mock_response = MagicMock()
