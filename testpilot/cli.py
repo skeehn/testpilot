@@ -1,8 +1,36 @@
 import os
 from pathlib import Path
+from contextlib import contextmanager
 
 import click
 from dotenv import load_dotenv, set_key
+
+# Optional rich spinner
+try:
+    from rich.progress import Progress, SpinnerColumn, TextColumn  # type: ignore
+except ImportError:  # pragma: no cover
+    Progress = None  # type: ignore
+
+
+@contextmanager
+def show_spinner(message: str):
+    """Context manager to display a spinner while executing a block."""
+
+    if Progress is None:
+        # Fallback: simple message
+        click.echo(f"{message}...")
+        yield
+    else:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(description=message, total=None)
+            try:
+                yield
+            finally:
+                progress.update(task, completed=1)
 
 from testpilot.core import (
     create_github_issue,
@@ -110,6 +138,8 @@ def help():
     default='./generated_tests',
     help='Directory to save generated tests',
 )
+@click.option('--overwrite', is_flag=True, default=False, help='Overwrite existing test file')
+@click.option('--append', 'append_mode', is_flag=True, default=False, help='Append to existing test file')
 @click.option(
     '--prompt-file',
     default=None,
@@ -153,6 +183,8 @@ def generate(
     output_dir,
     prompt_file,
     prompt_name,
+    overwrite,
+    append_mode,
     temperature,
     max_tokens,
     stop,
@@ -176,29 +208,44 @@ def generate(
     if retries:
         extra_kwargs["max_retries"] = retries
 
-    if retries:
-        from testpilot.core import generate_tests_llm_with_retry
+    with show_spinner("Generating tests"):
+        if retries:
+            from testpilot.core import generate_tests_llm_with_retry
 
-        test_code = generate_tests_llm_with_retry(
-            source_file,
-            provider,
-            model,
-            api_key=api_key,
-            **extra_kwargs,
-        )
-    else:
-        test_code = generate_tests_llm(
-            source_file,
-            provider,
-            model,
-            api_key,
-            **extra_kwargs,
-        )
+            test_code = generate_tests_llm_with_retry(
+                source_file,
+                provider,
+                model,
+                api_key=api_key,
+                **extra_kwargs,
+            )
+        else:
+            test_code = generate_tests_llm(
+                source_file,
+                provider,
+                model,
+                api_key,
+                **extra_kwargs,
+            )
     base = os.path.basename(source_file)
     test_file = os.path.join(output_dir, f"test_{base}")
-    with open(test_file, 'w') as f:
+
+    file_exists = os.path.exists(test_file)
+    if file_exists and not (overwrite or append_mode):
+        click.echo(
+            f"[generate] Error: {test_file} already exists. Use --overwrite or --append to modify.",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    mode = 'a' if append_mode else 'w'
+    with open(test_file, mode) as f:
+        if append_mode:
+            f.write("\n\n")
         f.write(test_code)
-    click.echo(f"[generate] Test file written to {test_file}")
+
+    action = "Appended to" if append_mode and file_exists else "Test file written to"
+    click.echo(f"[generate] {action} {test_file}")
 
 @cli.command()
 @click.argument(
@@ -209,7 +256,8 @@ def run(test_file):
     """
     Run tests in TEST_FILE using pytest.
     """
-    result = run_pytest_tests(test_file)
+    with show_spinner("Running tests"):
+        result = run_pytest_tests(test_file)
     click.echo(result)
 
 @cli.command()
@@ -222,7 +270,8 @@ def triage(test_file, repo):
     """
     Run tests and create a GitHub issue for failures.
     """
-    result, failed, trace = run_pytest_tests(test_file, return_trace=True)
+    with show_spinner("Running tests"):
+        result, failed, trace = run_pytest_tests(test_file, return_trace=True)
     click.echo(result)
     if failed:
         url = create_github_issue(
