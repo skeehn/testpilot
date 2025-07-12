@@ -278,19 +278,28 @@ def run(test_file, quiet):
     type=click.Path(exists=True, dir_okay=False, readable=True),
 )
 @click.option('--repo', required=True, help='GitHub repo (e.g. user/repo)')
-def triage(test_file, repo):
+@click.option('--labels', default=None, help='Comma-separated GitHub labels')
+@click.option('--assignees', default=None, help='Comma-separated GitHub assignees')
+def triage(test_file, repo, labels, assignees):
     """
     Run tests and create a GitHub issue for failures.
     """
     with show_spinner("Running tests"):
         result, failed, trace = run_pytest_tests(test_file, return_trace=True)
+
     click.echo(result)
+
+    labels_list = [s.strip() for s in labels.split(',')] if labels else None
+    assignees_list = [s.strip() for s in assignees.split(',')] if assignees else None
+
     if failed:
         url = create_github_issue(
             repo,
             f"Test failure in {test_file}",
             trace,
             os.getenv("GITHUB_TOKEN"),
+            labels=labels_list,
+            assignees=assignees_list,
         )
         click.secho(f"[triage] Issue created: {url}", fg="red")
     else:

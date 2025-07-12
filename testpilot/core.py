@@ -242,9 +242,21 @@ def run_pytest_tests(test_file, return_trace=False):
             return error_msg
 
 # Duplicate 'Optional' import removed above. Function signature updated:
-def create_github_issue(repo: str, title: str, body: str, github_token: Optional[str]):
-    """
-    Creates a GitHub issue and returns the issue URL.
+def create_github_issue(
+    repo: str,
+    title: str,
+    body: str,
+    github_token: Optional[str],
+    *,
+    labels: Optional[list[str]] = None,
+    assignees: Optional[list[str]] = None,
+):
+    """Creates a GitHub issue and returns the issue URL.
+
+    Additional parameters:
+        labels – list of label names to set on the issue (default adds
+                  "test-failure" & "testpilot-auto" if not supplied).
+        assignees – list of GitHub usernames to assign.
     """
     if Github is None:
         raise ImportError(
@@ -258,10 +270,13 @@ def create_github_issue(repo: str, title: str, body: str, github_token: Optional
         g = Github(github_token)
         repository = g.get_repo(repo)
         
-        issue = repository.create_issue(
+        final_labels = labels if labels else ["test-failure", "testpilot-auto"]
+
+        issue = repository.create_issue(  # type: ignore[arg-type]
             title=title,
             body=body,
-            labels=["test-failure", "testpilot-auto"]
+            labels=final_labels,
+            assignees=assignees or None,
         )
         
         return issue.html_url
