@@ -28,6 +28,7 @@ requires-python = ">=3.7"
 dependencies = [
     "click",
     "openai",
+    "anthropic",
     "PyGithub",
     "pytest",
     "python-dotenv",

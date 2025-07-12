@@ -279,19 +279,37 @@ class TestEnhancedLLMProviders(unittest.TestCase):
 
     def test_anthropic_provider_implementation(self):
         """Test Anthropic provider implementation."""
-        with patch('anthropic.Anthropic') as mock_anthropic:
-            # Mock the Anthropic client
+        with patch('builtins.__import__') as mock_import, \
+             patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'test_key'}):
+            # Mock the anthropic module import
+            mock_anthropic_module = MagicMock()
             mock_client = MagicMock()
             mock_response = MagicMock()
             mock_response.content = [MagicMock()]
             mock_response.content[0].text = "Claude generated test code"
             mock_client.messages.create.return_value = mock_response
-            mock_anthropic.return_value = mock_client
+            mock_anthropic_module.Anthropic.return_value = mock_client
             
+            def import_side_effect(name, *args):
+                if name == 'anthropic':
+                    return mock_anthropic_module
+                return __import__(name, *args)
+            
+            mock_import.side_effect = import_side_effect
+            
+            # Test with explicit API key
             provider = AnthropicProvider("test_key")
             result = provider.generate_text("Generate tests", "claude-3-sonnet-20240229")
             
             self.assertEqual(result, "Claude generated test code")
+            mock_client.messages.create.assert_called_once()
+            
+            # Test with environment variable
+            mock_client.reset_mock()
+            provider_env = AnthropicProvider()
+            result_env = provider_env.generate_text("Generate tests", "claude-3-sonnet-20240229")
+            
+            self.assertEqual(result_env, "Claude generated test code")
             mock_client.messages.create.assert_called_once()
 
     def test_ollama_provider_implementation(self):
