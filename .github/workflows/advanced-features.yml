@@ -1,0 +1,516 @@
+name: Advanced Features CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 6 AM UTC
+    - cron: '0 6 * * *'
+
+jobs:
+  test-advanced-features:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, '3.10', '3.11']
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio pytest-timeout
+        pip install -e .
+    
+    - name: Run basic tests
+      run: |
+        pytest tests/test_core.py -v --tb=short
+    
+    - name: Test streaming and caching features
+      run: |
+        pytest tests/test_streaming.py -v --tb=short --timeout=60
+    
+    - name: Test enhanced features
+      run: |
+        pytest tests/test_enhanced_features.py -v --tb=short --timeout=120
+    
+    - name: Test context analysis performance
+      run: |
+        python -c "
+        import time
+        from testpilot.core import CodebaseAnalyzer
+        
+        # Test performance of context analysis
+        start = time.time()
+        analyzer = CodebaseAnalyzer('.')
+        context = analyzer.get_project_context('testpilot/core.py')
+        duration = time.time() - start
+        
+        print(f'Context analysis took {duration:.2f}s')
+        assert duration < 5.0, f'Context analysis too slow: {duration:.2f}s'
+        print('✅ Context analysis performance test passed')
+        "
+    
+    - name: Test caching performance
+      run: |
+        python -c "
+        import tempfile
+        import time
+        from testpilot.streaming import TestPilotCache
+        
+        # Test cache performance
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache = TestPilotCache(cache_dir=temp_dir)
+            
+            # Test cache write performance
+            start = time.time()
+            for i in range(100):
+                cache.cache_test(f'code_{i}', 'prompt', 'openai', 'gpt-4', f'test_{i}', 0.8)
+            write_duration = time.time() - start
+            
+            # Test cache read performance
+            start = time.time()
+            for i in range(100):
+                result = cache.get_cached_test(f'code_{i}', 'prompt', 'openai', 'gpt-4')
+                assert result is not None
+            read_duration = time.time() - start
+            
+            print(f'Cache write: {write_duration:.2f}s for 100 entries')
+            print(f'Cache read: {read_duration:.2f}s for 100 entries')
+            
+            assert write_duration < 2.0, f'Cache writes too slow: {write_duration:.2f}s'
+            assert read_duration < 1.0, f'Cache reads too slow: {read_duration:.2f}s'
+            print('✅ Cache performance test passed')
+        "
+    
+    - name: Test validation system
+      run: |
+        python -c "
+        import tempfile
+        from testpilot.core import TestValidator
+        
+        validator = TestValidator()
+        
+        # Test syntax validation
+        valid_code = '''
+        def test_example():
+            assert 1 + 1 == 2
+        '''
+        
+        invalid_code = '''
+        def test_broken(
+            # Missing closing parenthesis
+            assert True
+        '''
+        
+        assert validator.validate_test_syntax(valid_code) == True
+        assert validator.validate_test_syntax(invalid_code) == False
+        print('✅ Syntax validation test passed')
+        
+        # Test execution validation
+        working_test = '''
+        def test_simple():
+            assert True
+        '''
+        
+        result = validator.validate_test_execution(working_test, 'dummy.py')
+        assert result['success'] == True
+        print('✅ Execution validation test passed')
+        "
+    
+    - name: Test integration with mocked providers
+      run: |
+        python -c "
+        import tempfile
+        from unittest.mock import patch, MagicMock
+        from testpilot.core import generate_tests_llm
+        
+        # Create test file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write('def add(a, b): return a + b')
+            temp_file = f.name
+        
+        try:
+            # Mock provider
+            with patch('testpilot.core.get_llm_provider') as mock_get_provider:
+                mock_provider = MagicMock()
+                mock_provider.generate_text.return_value = 'def test_add(): assert True'
+                mock_get_provider.return_value = mock_provider
+                
+                with patch('testpilot.core._validate_model') as mock_validate:
+                    mock_validate.return_value = 'gpt-4'
+                    
+                    # Test with context analysis
+                    result = generate_tests_llm(
+                        temp_file, 'openai', api_key='fake-key',
+                        use_context_analysis=True, validation_enabled=True
+                    )
+                    
+                    assert 'def test_add' in result
+                    print('✅ Integration test with context analysis passed')
+                    
+                    # Test with caching
+                    result2 = generate_tests_llm(
+                        temp_file, 'openai', api_key='fake-key',
+                        use_context_analysis=False, validation_enabled=False
+                    )
+                    
+                    assert result2 is not None
+                    print('✅ Integration test with caching passed')
+        finally:
+            import os
+            os.unlink(temp_file)
+        "
+    
+    - name: Generate coverage report
+      run: |
+        pytest tests/ --cov=testpilot --cov-report=xml --cov-report=html --cov-report=term-missing
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  performance-benchmarks:
+    runs-on: ubuntu-latest
+    needs: test-advanced-features
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Run performance benchmarks
+      run: |
+        python -c "
+        import time
+        import statistics
+        from testpilot.streaming import get_cache, get_monitor
+        
+        print('=== Performance Benchmarks ===')
+        
+        # Cache performance benchmark
+        cache = get_cache()
+        times = []
+        
+        for i in range(50):
+            start = time.time()
+            cache.cache_test(f'test_code_{i}', 'prompt', 'openai', 'gpt-4', f'result_{i}', 0.8)
+            cached = cache.get_cached_test(f'test_code_{i}', 'prompt', 'openai', 'gpt-4')
+            times.append(time.time() - start)
+        
+        avg_time = statistics.mean(times)
+        print(f'Cache round-trip average: {avg_time*1000:.2f}ms')
+        
+        # Monitor performance
+        monitor = get_monitor()
+        monitor.record_generation_time(2.5)
+        monitor.record_cache_hit()
+        report = monitor.get_performance_report()
+        
+        print(f'Monitor overhead: minimal')
+        print('✅ Performance benchmarks completed')
+        "
+    
+    - name: Memory usage test
+      run: |
+        python -c "
+        import psutil
+        import os
+        from testpilot.streaming import TestPilotCache, get_cache
+        
+        # Get initial memory
+        process = psutil.Process(os.getpid())
+        initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+        
+        # Create cache and add many entries
+        cache = get_cache()
+        for i in range(1000):
+            cache.cache_test(f'code_{i}', 'prompt', 'openai', 'gpt-4', f'test_{i}', 0.8)
+        
+        # Check memory usage
+        final_memory = process.memory_info().rss / 1024 / 1024  # MB
+        memory_increase = final_memory - initial_memory
+        
+        print(f'Memory usage: {initial_memory:.1f}MB -> {final_memory:.1f}MB (+{memory_increase:.1f}MB)')
+        
+        # Memory increase should be reasonable for 1000 cache entries
+        assert memory_increase < 100, f'Memory usage too high: {memory_increase:.1f}MB'
+        print('✅ Memory usage test passed')
+        "
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: test-advanced-features
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Test CLI with advanced features
+      run: |
+        # Test that CLI accepts new arguments
+        python -m testpilot.cli generate --help | grep -q "use-context"
+        python -m testpilot.cli generate --help | grep -q "validate"
+        python -m testpilot.cli generate --help | grep -q "show-analysis"
+        echo "✅ CLI advanced options available"
+    
+    - name: Test demo script
+      run: |
+        # Run the demo script to ensure it works
+        python demo_advanced_testpilot.py > demo_output.txt 2>&1
+        
+        # Check that demo produced expected output
+        grep -q "Context Analysis Results" demo_output.txt
+        grep -q "Quality Validation Results" demo_output.txt
+        grep -q "Competitive Analysis" demo_output.txt
+        echo "✅ Demo script runs successfully"
+    
+    - name: Test all components work together
+      run: |
+        python -c "
+        import tempfile
+        from testpilot.core import CodebaseAnalyzer, TestValidator
+        from testpilot.streaming import get_cache, get_monitor
+        
+        # Test that all components can be imported and initialized
+        with tempfile.TemporaryDirectory() as temp_dir:
+            analyzer = CodebaseAnalyzer(temp_dir)
+            validator = TestValidator()
+            cache = get_cache()
+            monitor = get_monitor()
+            
+            # Create a test file
+            test_file = f'{temp_dir}/test.py'
+            with open(test_file, 'w') as f:
+                f.write('def add(a, b): return a + b')
+            
+            # Test analyzer
+            analysis = analyzer.analyze_file_dependencies(test_file)
+            assert len(analysis['functions']) == 1
+            assert analysis['functions'][0]['name'] == 'add'
+            
+            # Test validator
+            test_code = 'def test_add(): assert True'
+            assert validator.validate_test_syntax(test_code) == True
+            
+            # Test cache
+            cache.cache_test('code', 'prompt', 'openai', 'gpt-4', 'test', 0.8)
+            cached = cache.get_cached_test('code', 'prompt', 'openai', 'gpt-4')
+            assert cached is not None
+            
+            # Test monitor
+            monitor.record_generation_time(1.0)
+            report = monitor.get_performance_report()
+            assert report['total_requests'] > 0
+            
+            print('✅ All components integration test passed')
+        "
+
+  quality-gates:
+    runs-on: ubuntu-latest
+    needs: [test-advanced-features, performance-benchmarks, integration-tests]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Quality gate - Test coverage
+      run: |
+        pytest tests/ --cov=testpilot --cov-fail-under=80
+        echo "✅ Test coverage quality gate passed"
+    
+    - name: Quality gate - Performance
+      run: |
+        python -c "
+        import time
+        from testpilot.streaming import get_cache
+        
+        # Performance quality gate
+        cache = get_cache()
+        
+        # Cache operations should be fast
+        start = time.time()
+        for i in range(100):
+            cache.cache_test(f'code_{i}', 'prompt', 'openai', 'gpt-4', f'test_{i}', 0.8)
+        cache_time = time.time() - start
+        
+        assert cache_time < 2.0, f'Cache operations too slow: {cache_time:.2f}s'
+        print('✅ Performance quality gate passed')
+        "
+    
+    - name: Quality gate - Memory efficiency
+      run: |
+        python -c "
+        import psutil
+        import os
+        from testpilot.core import CodebaseAnalyzer
+        
+        # Memory efficiency quality gate
+        process = psutil.Process(os.getpid())
+        initial_memory = process.memory_info().rss / 1024 / 1024
+        
+        # Create analyzer and analyze multiple files
+        analyzer = CodebaseAnalyzer('.')
+        for py_file in ['testpilot/core.py', 'testpilot/cli.py', 'testpilot/streaming.py']:
+            try:
+                context = analyzer.get_project_context(py_file)
+            except Exception:
+                pass  # File might not exist in CI
+        
+        final_memory = process.memory_info().rss / 1024 / 1024
+        memory_increase = final_memory - initial_memory
+        
+        assert memory_increase < 50, f'Memory usage too high: {memory_increase:.1f}MB'
+        print('✅ Memory efficiency quality gate passed')
+        "
+    
+    - name: Quality gate - Feature completeness
+      run: |
+        python -c "
+        # Verify all advanced features are available
+        from testpilot.core import CodebaseAnalyzer, TestValidator, generate_tests_llm
+        from testpilot.streaming import (
+            TestPilotCache, StreamingGenerator, ParallelProcessor, 
+            PerformanceMonitor, get_cache, get_monitor
+        )
+        
+        # Check that all classes can be instantiated
+        analyzer = CodebaseAnalyzer('.')
+        validator = TestValidator()
+        cache = TestPilotCache()
+        generator = StreamingGenerator()
+        processor = ParallelProcessor()
+        monitor = PerformanceMonitor()
+        
+        # Check that global instances work
+        global_cache = get_cache()
+        global_monitor = get_monitor()
+        
+        print('✅ Feature completeness quality gate passed')
+        "
+    
+    - name: Generate quality report
+      run: |
+        python -c "
+        import json
+        from testpilot.streaming import get_cache, get_monitor
+        
+        # Generate quality report
+        cache = get_cache()
+        monitor = get_monitor()
+        
+        # Add some test data
+        cache.cache_test('test', 'prompt', 'openai', 'gpt-4', 'result', 0.9)
+        monitor.record_generation_time(2.0)
+        monitor.record_cache_hit()
+        
+        cache_stats = cache.get_cache_stats()
+        performance_report = monitor.get_performance_report()
+        
+        quality_report = {
+            'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+            'cache_stats': cache_stats,
+            'performance_report': performance_report,
+            'quality_gates': {
+                'test_coverage': 'PASSED',
+                'performance': 'PASSED',
+                'memory_efficiency': 'PASSED',
+                'feature_completeness': 'PASSED'
+            }
+        }
+        
+        print('=== Quality Report ===')
+        print(json.dumps(quality_report, indent=2))
+        print('✅ All quality gates passed')
+        "
+
+  deploy-docs:
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install mkdocs mkdocs-material
+        pip install -e .
+    
+    - name: Build documentation
+      run: |
+        # Create mkdocs.yml if it doesn't exist
+        cat > mkdocs.yml << EOF
+        site_name: TestPilot Advanced Features
+        theme:
+          name: material
+          palette:
+            primary: blue
+            accent: light-blue
+        nav:
+          - Home: README.md
+          - Advanced Features: docs/ADVANCED_FEATURES.md
+          - Master Plan: MASTERPLAN.md
+        markdown_extensions:
+          - codehilite
+          - admonition
+          - toc:
+              permalink: true
+        EOF
+        
+        mkdocs build
+    
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: \${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./site

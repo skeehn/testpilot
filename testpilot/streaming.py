@@ -165,15 +165,20 @@ class TestPilotCache:
     def clear_old_entries(self, days: int = 30):
         """Clear cache entries older than specified days."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                DELETE FROM test_cache 
-                WHERE created_at < datetime('now', '-{} days')
-            """.format(days))
-            
-            conn.execute("""
-                DELETE FROM context_cache 
-                WHERE created_at < datetime('now', '-{} days')
-            """.format(days))
+            if days == 0:
+                # Clear all entries
+                conn.execute("DELETE FROM test_cache")
+                conn.execute("DELETE FROM context_cache")
+            else:
+                conn.execute("""
+                    DELETE FROM test_cache 
+                    WHERE created_at < datetime('now', '-{} days')
+                """.format(days))
+                
+                conn.execute("""
+                    DELETE FROM context_cache 
+                    WHERE created_at < datetime('now', '-{} days')
+                """.format(days))
             conn.commit()
     
     def get_cache_stats(self) -> Dict[str, Any]:
