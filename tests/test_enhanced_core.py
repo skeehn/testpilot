@@ -5,12 +5,10 @@ This test suite validates the revolutionary 50× improvement features including
 advanced AI capabilities, code analysis, test verification, and quality assurance.
 """
 
-import ast
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 # Import our enhanced functionality
 from testpilot.core import (
@@ -163,7 +161,7 @@ class UserService:
         invalid_code = "def invalid_syntax( invalid"
         
         with self.assertRaises(SyntaxError):
-            analyzer = CodeAnalyzer(invalid_code)
+            CodeAnalyzer(invalid_code)
 
 
 class TestCodeVerifierClass(unittest.TestCase):
