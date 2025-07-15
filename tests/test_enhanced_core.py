@@ -161,7 +161,7 @@ class UserService:
         invalid_code = "def invalid_syntax( invalid"
         
         with self.assertRaises(SyntaxError):
-            analyzer = CodeAnalyzer(invalid_code)
+            CodeAnalyzer(invalid_code)
 
 
 class TestCodeVerifierClass(unittest.TestCase):
