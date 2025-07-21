@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/skeehn/testpilot/discussions
+    about: Ask questions, share ideas, and discuss TestPilot with the community
+  - name: 📚 Documentation
+    url: https://github.com/skeehn/testpilot#documentation
+    about: Read the comprehensive documentation and guides
+  - name: 🚀 Examples
+    url: https://github.com/skeehn/testpilot/tree/main/examples
+    about: Check out examples and sample projects

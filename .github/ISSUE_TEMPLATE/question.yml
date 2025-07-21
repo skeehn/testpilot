@@ -1,0 +1,172 @@
+name: Question / Help
+description: Ask a question or get help using TestPilot
+title: "[Question]: "
+labels: ["question", "help-wanted"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reaching out! Please provide as much context as possible so we can help you effectively.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What type of help do you need?
+      options:
+        - Installation/Setup
+        - Configuration
+        - Usage/How-to
+        - AI Provider Setup
+        - IDE Integration
+        - Performance Issues
+        - Understanding Output
+        - Best Practices
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: TestPilot Version
+      description: What version of TestPilot are you using?
+      placeholder: e.g., 0.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: experience
+    attributes:
+      label: Experience Level
+      description: How familiar are you with TestPilot?
+      options:
+        - New user (first time using)
+        - Beginner (used a few times)
+        - Intermediate (regular user)
+        - Advanced (power user)
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know? Be as specific as possible.
+      placeholder: |
+        I'm trying to...
+        
+        I expected...
+        
+        But instead...
+        
+        How can I...?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context & Background
+      description: Provide context about what you're trying to achieve
+      placeholder: |
+        I'm working on a project that...
+        My goal is to...
+        I'm having trouble with...
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What Have You Tried?
+      description: What steps have you already attempted?
+      placeholder: |
+        1. I tried...
+        2. I also attempted...
+        3. I looked at...
+
+  - type: textarea
+    id: code-samples
+    attributes:
+      label: Code Samples
+      description: If relevant, provide code samples or command examples
+      render: shell
+      placeholder: |
+        # Commands you've tried
+        $ testpilot generate my_file.py
+        
+        # Code you're working with
+        def my_function():
+            pass
+
+  - type: textarea
+    id: error-output
+    attributes:
+      label: Error Messages or Output
+      description: If you're getting errors, please paste the full output
+      render: shell
+      placeholder: Paste error messages or command output here...
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Your TestPilot configuration (remove any API keys!)
+      render: json
+      placeholder: |
+        {
+          "defaultProvider": "openai",
+          "enhancedMode": true
+        }
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What operating system are you using?
+      options:
+        - Windows
+        - macOS
+        - Linux (Ubuntu)
+        - Linux (Other)
+        - Other
+
+  - type: dropdown
+    id: python-version
+    attributes:
+      label: Python Version
+      description: What version of Python are you using?
+      options:
+        - "3.7"
+        - "3.8"
+        - "3.9"
+        - "3.10"
+        - "3.11"
+        - "3.12"
+        - "3.13"
+
+  - type: checkboxes
+    id: documentation
+    attributes:
+      label: Documentation Check
+      description: Have you checked the following resources?
+      options:
+        - label: I've read the README
+        - label: I've checked the examples directory
+        - label: I've looked at the API documentation
+        - label: I've searched existing issues
+        - label: I've tried the help command (`testpilot help`)
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please verify the following before submitting
+      options:
+        - label: I have provided sufficient context for others to understand my question
+          required: true
+        - label: I have removed any sensitive information (API keys, personal data)
+          required: true
+        - label: I have searched existing issues to see if this question was already asked
+          required: true

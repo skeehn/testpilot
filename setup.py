@@ -25,14 +25,16 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='TestPilot Authors',
-    url='https://github.com/yourusername/testpilot',
+    url='https://github.com/skeehn/testpilot',
     packages=find_packages(),
     install_requires=[
         'click',
         'openai',
+        'anthropic',
         'PyGithub',
         'pytest',
         'python-dotenv',
+        'requests',
     ],
     entry_points={
         'console_scripts': [

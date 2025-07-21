@@ -2,9 +2,9 @@
 
 **Built to be 50× faster and better than traditional testing workflows**
 
-[![license badge](https://img.shields.io/github/license/yourusername/testpilot.svg)](./LICENSE)
+[![license badge](https://img.shields.io/github/license/skeehn/testpilot.svg)](./LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.7%2B-blue.svg)](https://python.org)
-[![GitHub Stars](https://img.shields.io/github/stars/yourusername/testpilot.svg)](https://github.com/yourusername/testpilot)
+[![GitHub Stars](https://img.shields.io/github/stars/skeehn/testpilot.svg)](https://github.com/skeehn/testpilot)
 
 ---
 
@@ -39,7 +39,7 @@ TestPilot transforms testing from a tedious afterthought into a seamless, AI-acc
 
 ```bash
 # Clone and install
-git clone https://github.com/yourusername/testpilot.git
+git clone https://github.com/skeehn/testpilot.git
 cd testpilot
 pip install -e .
 
@@ -60,7 +60,7 @@ testpilot run generated_tests/test_my_module.py --coverage
 testpilot interactive
 
 # Triage failures to GitHub issues
-testpilot triage test_file.py --repo yourusername/yourrepo
+testpilot triage test_file.py --repo skeehn/yourrepo
 ```
 
 ## 🎯 Core Concepts
@@ -300,7 +300,7 @@ We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for deta
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/testpilot.git
+git clone https://github.com/skeehn/testpilot.git
 cd testpilot
 
 # Set up development environment
@@ -448,7 +448,7 @@ TestPilot is more than a tool - it's a movement toward better, faster, more reli
 
 ### Stay Connected
 
-- **🐙 GitHub**: [https://github.com/yourusername/testpilot](https://github.com/yourusername/testpilot)
+- **🐙 GitHub**: [https://github.com/skeehn/testpilot](https://github.com/skeehn/testpilot)
 - **💬 Discord**: [Join our community](https://discord.gg/testpilot)
 - **📱 Twitter**: [@TestPilotAI](https://twitter.com/TestPilotAI)
 - **📧 Newsletter**: [Subscribe for updates](https://testpilot.dev/newsletter)

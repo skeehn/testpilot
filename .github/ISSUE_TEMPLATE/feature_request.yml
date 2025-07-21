@@ -1,0 +1,144 @@
+name: Feature Request
+description: Suggest a new feature or improvement for TestPilot
+title: "[Feature]: "
+labels: ["enhancement", "feature-request"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide as much detail as possible to help us understand your request.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: What category does this feature belong to?
+      options:
+        - AI/LLM Integration
+        - Test Generation
+        - IDE Integration
+        - CLI Interface
+        - Performance
+        - Quality Assurance
+        - Configuration
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How important is this feature to you?
+      options:
+        - Critical (blocking my workflow)
+        - High (would significantly improve my workflow)
+        - Medium (nice to have)
+        - Low (minor improvement)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What's the current limitation?
+      placeholder: Describe the problem or limitation you're experiencing...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: What would you like to see implemented?
+      placeholder: Describe your proposed solution in detail...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: What alternatives have you considered?
+      placeholder: Describe any alternative solutions you've considered...
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Provide specific examples of how this feature would be used
+      placeholder: |
+        1. As a developer, I would use this to...
+        2. When working on large projects, this would help by...
+        3. During testing workflows, this would improve...
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Code Examples
+      description: If applicable, provide code examples showing how the feature would work
+      render: python
+      placeholder: |
+        # Example of how the feature would be used
+        testpilot generate my_file.py --new-feature-flag
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: UI/CLI Mockups
+      description: If this involves UI or CLI changes, provide mockups or descriptions
+      placeholder: |
+        # Example CLI output or UI description
+        $ testpilot new-command
+        > Output showing the new feature...
+
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: Implementation Considerations
+      description: Select any implementation aspects that are important
+      options:
+        - label: This should work with all AI providers (OpenAI, Anthropic, Ollama)
+        - label: This should be backward compatible
+        - label: This should have configuration options
+        - label: This needs documentation updates
+        - label: This might require breaking changes
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected Impact
+      description: What impact would this feature have on TestPilot users?
+      placeholder: |
+        - Productivity improvement: X% faster workflows
+        - Quality improvement: Better test coverage/accuracy
+        - Usability improvement: Easier to use for new users
+        - etc.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Are you interested in contributing to this feature?
+      options:
+        - label: I would like to implement this feature myself
+        - label: I can help with testing once implemented
+        - label: I can help with documentation
+        - label: I can provide ongoing feedback during development
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please verify the following before submitting
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: This feature aligns with TestPilot's goals of improving testing workflows
+          required: true
+        - label: I have provided sufficient detail for the development team to understand the request
+          required: true

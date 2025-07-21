@@ -32,11 +32,12 @@ dependencies = [
     "PyGithub",
     "pytest",
     "python-dotenv",
+    "requests",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/testpilot"
-Repository = "https://github.com/yourusername/testpilot"
+Homepage = "https://github.com/skeehn/testpilot"
+Repository = "https://github.com/skeehn/testpilot"
 
 [project.scripts]
 testpilot = "testpilot.cli:cli"
